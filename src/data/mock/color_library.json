@@ -1,0 +1,271 @@
+[
+  {
+    "id": "color_hot_pink_001",
+    "name": "Hot Pink",
+    "finish": "glossy",
+    "family": "pinks",
+    "colorFamily": "pinks",
+    "opacity": 1.0,
+    "hex": "#FF1493",
+    "hexCode": "#FF1493",
+    "isTransparent": false,
+    "polishCode": "HP-001",
+    "aliases": [
+      "hot pink",
+      "bright pink",
+      "neon pink"
+    ]
+  },
+  {
+    "id": "color_lilac_001",
+    "name": "Lilac",
+    "finish": "glossy",
+    "family": "purples",
+    "colorFamily": "purples",
+    "opacity": 1.0,
+    "hex": "#C8A2C8",
+    "hexCode": "#C8A2C8",
+    "isTransparent": false,
+    "polishCode": "LIL-002",
+    "aliases": [
+      "lilac",
+      "light purple",
+      "lavender"
+    ]
+  },
+  {
+    "id": "color_gold_001",
+    "name": "Gold",
+    "finish": "metallic",
+    "family": "metallics",
+    "colorFamily": "metallics",
+    "opacity": 1.0,
+    "hex": "#FFD700",
+    "hexCode": "#FFD700",
+    "isTransparent": false,
+    "polishCode": "GLD-003",
+    "aliases": [
+      "gold",
+      "golden",
+      "metallic gold"
+    ]
+  },
+  {
+    "id": "color_black_001",
+    "name": "Jet Black",
+    "finish": "glossy",
+    "family": "neutrals",
+    "colorFamily": "neutrals",
+    "opacity": 1.0,
+    "hex": "#000000",
+    "hexCode": "#000000",
+    "isTransparent": false,
+    "polishCode": "BLK-002",
+    "aliases": [
+      "black",
+      "jet black"
+    ]
+  },
+  {
+    "id": "color_soft_pink_002",
+    "name": "Soft Pink",
+    "finish": "matte",
+    "family": "pinks",
+    "colorFamily": "pinks",
+    "opacity": 1.0,
+    "hex": "#F7A8B8",
+    "hexCode": "#F7A8B8",
+    "isTransparent": false,
+    "polishCode": "PNK-003",
+    "aliases": [
+      "soft pink",
+      "baby pink",
+      "light pink"
+    ]
+  },
+  {
+    "id": "color_nude_soft_001",
+    "name": "Soft Nude Beige",
+    "finish": "glossy",
+    "family": "nudes",
+    "colorFamily": "nudes",
+    "opacity": 1.0,
+    "hex": "#E7C8A0",
+    "hexCode": "#E7C8A0",
+    "isTransparent": false,
+    "polishCode": "NUD-001",
+    "aliases": [
+      "white",
+      "french white",
+      "tip white"
+    ]
+  },
+  {
+    "id": "color_white_pure_001",
+    "name": "Pure White",
+    "finish": "glossy",
+    "family": "neutrals",
+    "colorFamily": "neutrals",
+    "opacity": 1.0,
+    "hex": "#FFFFFF",
+    "hexCode": "#FFFFFF",
+    "isTransparent": false,
+    "polishCode": "WHT-001"
+  },
+  {
+    "id": "color_pink_ombre_001",
+    "name": "Pink Ombré Fade",
+    "finish": "matte",
+    "family": "pinks",
+    "colorFamily": "pinks",
+    "opacity": 1.0,
+    "hex": "#F8BBD0",
+    "hexCode": "#F8BBD0",
+    "isTransparent": false,
+    "polishCode": "PNK-001"
+  },
+  {
+    "id": "color_gold_glitter_001",
+    "name": "24K Gold Glitter",
+    "finish": "glitter",
+    "family": "metallics",
+    "colorFamily": "metallics",
+    "opacity": 1.0,
+    "hex": "#D4AF37",
+    "hexCode": "#D4AF37",
+    "isTransparent": false,
+    "polishCode": "GLD-001"
+  },
+  {
+    "id": "color_white_glitter_001",
+    "name": "White Diamond Dust",
+    "finish": "glitter",
+    "family": "neutrals",
+    "colorFamily": "neutrals",
+    "opacity": 0.95,
+    "hex": "#F8F8F8",
+    "hexCode": "#F8F8F8",
+    "isTransparent": false,
+    "polishCode": "WHT-002"
+  },
+  {
+    "id": "color_black_matte_001",
+    "name": "Jet Matte Black",
+    "finish": "matte",
+    "family": "blacks",
+    "colorFamily": "blacks",
+    "opacity": 1.0,
+    "hex": "#000000",
+    "hexCode": "#000000",
+    "isTransparent": false,
+    "polishCode": "BLK-001"
+  },
+  {
+    "id": "color_silver_chrome_001",
+    "name": "Mirror Silver Chrome",
+    "finish": "chrome",
+    "family": "metallics",
+    "colorFamily": "metallics",
+    "opacity": 1.0,
+    "hex": "#C0C0C0",
+    "hexCode": "#C0C0C0",
+    "isTransparent": false,
+    "polishCode": "SLV-001"
+  },
+  {
+    "id": "color_lilac_gloss_001",
+    "name": "Soft Lilac Gloss",
+    "finish": "glossy",
+    "family": "purples",
+    "colorFamily": "purples",
+    "opacity": 1.0,
+    "hex": "#D8C3E8",
+    "hexCode": "#D8C3E8",
+    "isTransparent": false,
+    "polishCode": "LIL-001"
+  },
+  {
+    "id": "color_silver_gloss_001",
+    "name": "Silver Sparkle Base",
+    "finish": "glossy",
+    "family": "metallics",
+    "colorFamily": "metallics",
+    "opacity": 1.0,
+    "hex": "#EAEAEA",
+    "hexCode": "#EAEAEA",
+    "isTransparent": false,
+    "polishCode": "SLV-002"
+  },
+  {
+    "id": "color_pink_chrome_001",
+    "name": "Bubblegum Chrome",
+    "finish": "chrome",
+    "family": "pinks",
+    "colorFamily": "pinks",
+    "opacity": 1.0,
+    "hex": "#EFC1CF",
+    "hexCode": "#EFC1CF",
+    "isTransparent": false,
+    "polishCode": "PNK-002"
+  },
+  {
+    "id": "color_marble_pink_white_001",
+    "name": "Pink & White Marble",
+    "finish": "glossy",
+    "family": "pinks",
+    "colorFamily": "pinks",
+    "opacity": 0.9,
+    "hex": "#EAD4D8",
+    "hexCode": "#EAD4D8",
+    "isTransparent": true,
+    "polishCode": "MRB-001"
+  },
+  {
+    "id": "color_neutral_gloss_001",
+    "name": "Soft Cream Gloss",
+    "finish": "glossy",
+    "family": "nudes",
+    "colorFamily": "nudes",
+    "opacity": 1.0,
+    "hex": "#EADBD1",
+    "hexCode": "#EADBD1",
+    "isTransparent": false,
+    "polishCode": "NUD-002"
+  },
+  {
+    "id": "color_gold_outline_001",
+    "name": "Metallic Gold Outline",
+    "finish": "metallic",
+    "family": "metallics",
+    "colorFamily": "metallics",
+    "opacity": 1.0,
+    "hex": "#D4AF37",
+    "hexCode": "#D4AF37",
+    "isTransparent": false,
+    "polishCode": "GLD-002"
+  },
+  {
+    "id": "color_neutral_glam_001",
+    "name": "Neutral Glam Base",
+    "finish": "glossy",
+    "family": "nudes",
+    "colorFamily": "nudes",
+    "opacity": 1.0,
+    "hex": "#EAD3B0",
+    "hexCode": "#EAD3B0",
+    "isTransparent": false,
+    "polishCode": "NUD-003"
+  },
+  {
+    "id": "color_clear_gloss_001",
+    "name": "Crystal Clear Gloss",
+    "finish": "glossy",
+    "family": "clear",
+    "colorFamily": "clear",
+    "opacity": 0.0,
+    "hex": "#FFFFFF",
+    "hexCode": "#FFFFFF",
+    "isTransparent": true,
+    "polishCode": "CLR-001"
+  }
+]

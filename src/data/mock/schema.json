@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "description": "Schema reference for mock Firestore datasets used in local development.",
+  "collections": {
+    "nails": {
+      "doc": {
+        "id": "string",
+        "shape": "enum",
+        "length": "enum",
+        "tags": ["string"]
+      },
+      "enums": {
+        "shape": ["stiletto", "almond", "oval", "square", "coffin", "ballerina", "round", "squoval"],
+        "length": ["short", "medium", "long", "extra_long"]
+      }
+    },
+    "color_library": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "hex": "#RRGGBB",
+        "tags": ["string"],
+        "aliases": ["string"],
+        "finishes": ["string"],
+        "defaultFinish": "string"
+      }
+    },
+    "gradients": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    },
+    "charms": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    },
+    "stickers": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    },
+    "patterns": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    },
+    "gel_art_3d": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    },
+    "effects": {
+      "doc": {
+        "id": "string",
+        "name": "string",
+        "tags": ["string"],
+        "aliases": ["string"]
+      }
+    }
+  }
+}

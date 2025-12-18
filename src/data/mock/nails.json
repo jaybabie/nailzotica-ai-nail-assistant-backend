@@ -1,0 +1,122 @@
+[
+    {
+      "id": "nail_square_short_01",
+      "name": "Square Short",
+      "shape": "square",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/square_short.glb",
+      "tags": ["square", "short", "classic", "clean", "minimal"]
+    },
+    {
+      "id": "nail_square_medium_01",
+      "name": "Square Medium",
+      "shape": "square",
+      "length": "medium",
+      "modelUrl": "https://cdn.nailzotica.com/nails/square_medium.glb",
+      "tags": ["square", "medium", "french tip", "neutral", "elegant"]
+    },
+    {
+      "id": "nail_square_long_01",
+      "name": "Square Long",
+      "shape": "square",
+      "length": "long",
+      "modelUrl": "https://cdn.nailzotica.com/nails/square_long.glb",
+      "tags": ["square", "long", "glam", "bold", "trendy"]
+    },
+    {
+      "id": "nail_square_xlong_01",
+      "name": "Square Extra Long",
+      "shape": "square",
+      "length": "extra_long",
+      "modelUrl": "https://cdn.nailzotica.com/nails/square_xlong.glb",
+      "tags": ["square", "extra long", "marble", "editorial", "statement"]
+    },
+    {
+      "id": "nail_stiletto_short_01",
+      "name": "Stiletto Short",
+      "shape": "stiletto",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/stiletto_short.glb",
+      "tags": ["stiletto", "short", "ombre", "pink", "soft glam"]
+    },
+    {
+      "id": "nail_stiletto_long_01",
+      "name": "Stiletto Long",
+      "shape": "stiletto",
+      "length": "long",
+      "modelUrl": "https://cdn.nailzotica.com/nails/stiletto_long.glb",
+      "tags": ["stiletto", "long", "chrome", "heart", "valentine"]
+    },
+    {
+      "id": "nail_almond_short_01",
+      "name": "Almond Short",
+      "shape": "almond",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/almond_short.glb",
+      "tags": ["almond", "short", "sparkle", "glitter", "goddess"]
+    },
+    {
+      "id": "nail_almond_medium_01",
+      "name": "Almond Medium",
+      "shape": "almond",
+      "length": "medium",
+      "modelUrl": "https://cdn.nailzotica.com/nails/almond_medium.glb",
+      "tags": ["almond", "medium", "feminine", "nude", "soft"]
+    },
+    {
+      "id": "nail_ballerina_medium_01",
+      "name": "Ballerina Medium",
+      "shape": "ballerina",
+      "length": "medium",
+      "modelUrl": "https://cdn.nailzotica.com/nails/ballerina_medium.glb",
+      "tags": ["ballerina", "medium", "black", "stud", "luxury"]
+    },
+    {
+      "id": "nail_ballerina_long_01",
+      "name": "Ballerina Long",
+      "shape": "ballerina",
+      "length": "long",
+      "modelUrl": "https://cdn.nailzotica.com/nails/ballerina_long.glb",
+      "tags": ["ballerina", "long", "outline french", "gold", "neutral glam"]
+    },
+    {
+      "id": "nail_duck_medium_01",
+      "name": "Duck Medium",
+      "shape": "duck",
+      "length": "medium",
+      "modelUrl": "https://cdn.nailzotica.com/nails/duck_medium.glb",
+      "tags": ["duck", "medium", "flame", "chrome", "artsy"]
+    },
+    {
+      "id": "nail_duck_mooncut_medium_01",
+      "name": "Duck Mooncut Medium",
+      "shape": "duck_mooncut",
+      "length": "medium",
+      "modelUrl": "https://cdn.nailzotica.com/nails/duck_mooncut_medium.glb",
+      "tags": ["duck", "mooncut", "butterfly", "kawaii", "accent charm"]
+    },
+    {
+      "id": "nail_duck_short_01",
+      "name": "Duck Short",
+      "shape": "duck",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/duck_short.glb",
+      "tags": ["duck", "short", "cuticle", "rhinestone", "minimal glam"]
+    },
+    {
+      "id": "nail_lipstick_left_short_01",
+      "name": "Lipstick Left Short",
+      "shape": "lipstick_left",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/lipstick_left_short.glb",
+      "tags": ["lipstick", "short", "french", "rhinestone", "silver"]
+    },
+    {
+      "id": "nail_square_short_fullbling_01",
+      "name": "Square Short (Full Bling)",
+      "shape": "square",
+      "length": "short",
+      "modelUrl": "https://cdn.nailzotica.com/nails/square_short_fullbling.glb",
+      "tags": ["square", "short", "full bling", "rhinestone", "sparkle"]
+    }
+  ]

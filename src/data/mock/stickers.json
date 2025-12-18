@@ -1,0 +1,7 @@
+[
+  { "id": "sticker_butterfly_holo", "name": "Holographic Butterfly Stickers", "tags": ["butterfly", "holographic", "holo"], "aliases": ["butterfly sticker"] },
+  { "id": "sticker_star_mini", "name": "Mini Star Stickers", "tags": ["star", "minimal"], "aliases": ["star decals"] },
+  { "id": "sticker_heart_gold", "name": "Gold Heart Stickers", "tags": ["heart", "gold"], "aliases": ["golden heart"] },
+  { "id": "sticker_flame_chrome", "name": "Chrome Flame Stickers", "tags": ["flame", "chrome"], "aliases": ["flame decals"] },
+  { "id": "sticker_geo_lines", "name": "Geometric Line Set", "tags": ["geometric", "lines", "modern"], "aliases": ["line stickers"] }
+]

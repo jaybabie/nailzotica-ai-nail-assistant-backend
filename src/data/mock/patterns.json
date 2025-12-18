@@ -1,0 +1,78 @@
+[
+  {
+    "id": "pattern_ombre_pink_nude_01",
+    "name": "Pink to Nude Ombré",
+    "type": "gradient",
+    "description": "Soft vertical pink to nude fade",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/ombre_pink_nude.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/full_nail_mask.png",
+    "unityMaskUrl": "mask_full_nail",
+    "colorStops": [
+      { "colorRef": "color_soft_pink_001", "location": 0.0 },
+      { "colorRef": "color_nude_soft_001", "location": 1.0 }
+    ],
+    "tags": ["ombre","pink","nude","soft glam","gradient"]
+  },
+  {
+    "id": "pattern_white_glitter_tip_01",
+    "name": "White Glitter French Tip",
+    "type": "glitter_overlay",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/white_glitter_tip.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_glitter.png",
+    "unityMaskUrl": "mask_french_glitter",
+    "scale": 1.0,
+    "opacity": 0.9,
+    "tags": ["glitter","french","white","sparkle"]
+  },
+  {
+    "id": "pattern_gold_glitter_full_01",
+    "name": "Full Gold Glitter",
+    "type": "glitter_overlay",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/gold_glitter_full.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/full_nail_mask.png",
+    "unityMaskUrl": "mask_full_nail",
+    "opacity": 1.0,
+    "tags": ["gold","sparkle","glitter","full bling"]
+  },
+  {
+    "id": "pattern_marble_pink_white_01",
+    "name": "Pink & White Marble",
+    "type": "marble",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/marble_pink_white.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/full_nail_mask.png",
+    "unityMaskUrl": "mask_full_nail",
+    "scale": 1.0,
+    "rotation": 0.0,
+    "tags": ["marble","pink","swirl","trend"]
+  },
+  {
+    "id": "pattern_glitter_overlay_silver_01",
+    "name": "Silver Sparkle Overlay",
+    "type": "glitter_overlay",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/silver_sparkle_overlay.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/full_nail_mask.png",
+    "unityMaskUrl": "mask_full_nail",
+    "opacity": 0.6,
+    "tags": ["silver","sparkle","glitter","bling"]
+  },
+  {
+    "id": "pattern_stars_silver_scattered_01",
+    "name": "Silver Star Scatter",
+    "type": "scatter",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/stars_silver_scatter.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/full_nail_mask.png",
+    "unityMaskUrl": "mask_full_nail",
+    "element": "star",
+    "opacity": 1.0,
+    "tags": ["stars","silver","y2k","fun","sparkle"]
+  },
+  {
+    "id": "pattern_chrome_drip_silver_01",
+    "name": "Chrome Drip",
+    "type": "drip",
+    "thumbnailUi": "https://cdn.nailzotica.com/patterns/chrome_drip.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/masks/drip_mask_silver.png",
+    "unityMaskUrl": "mask_drip_silver",
+    "finish": "chrome",
+    "tags": ["chrome","drip","silver","bold","metallic"]
+  }]

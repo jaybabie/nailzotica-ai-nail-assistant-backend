@@ -1,0 +1,7 @@
+[
+  { "id": "effect_holographic", "name": "holographic", "tags": ["holo", "iridescent", "prismatic"], "aliases": ["holo"] },
+  { "id": "effect_cat_eye", "name": "cat_eye", "tags": ["cateye", "magnetic"], "aliases": ["cat eye", "cateye"] },
+  { "id": "effect_aurora", "name": "aurora", "tags": ["aura", "iridescent"], "aliases": ["aura"] },
+  { "id": "effect_chrome_top", "name": "chrome_top", "tags": ["chrome", "topcoat"], "aliases": ["chrome topcoat"] },
+  { "id": "effect_pearlescent", "name": "pearlescent", "tags": ["pearl", "soft sheen"], "aliases": ["pearl"] }
+]

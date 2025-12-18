@@ -1,0 +1,77 @@
+[
+  {
+    "id": "grad_pink_nude_vertical_01",
+    "name": "Pink to Nude Fade (Vertical)",
+    "angle": 90,
+    "finish": "matte",
+    "stops": [
+      {
+        "colorName": "Soft Pink",
+        "colorFamily": "pink",
+        "colorRef": "color_soft_pink_001",
+        "hexColor": "#E9A5C9",
+        "opacity": 1.0,
+        "location": 0.0
+      },
+      {
+        "colorName": "Warm Nude",
+        "colorFamily": "nude",
+        "colorRef": "color_nude_soft_001",
+        "hexColor": "#E7C8A0",
+        "opacity": 1.0,
+        "location": 1.0
+      }
+    ],
+    "tags": ["ombre","pink","nude","girly","soft glam"]
+  },
+  {
+    "id": "grad_white_sparkle_highlight_01",
+    "name": "White Highlight (Glitter Edge)",
+    "angle": 45,
+    "finish": "glossy",
+    "stops": [
+      {
+        "colorName": "Bright White",
+        "colorFamily": "neutral",
+        "colorRef": "color_white_pure_001",
+        "hexColor": "#FFFFFF",
+        "opacity": 0.9,
+        "location": 0.0
+      },
+      {
+        "colorName": "Sheer Pearl",
+        "colorFamily": "iridescent",
+        "colorRef": "color_pearl_sheer_001",
+        "hexColor": "#F8F6F1",
+        "opacity": 0.5,
+        "location": 1.0
+      }
+    ],
+    "tags": ["shine","gloss","glitter overlay","highlight"]
+  },
+  {
+    "id": "grad_lilac_soft_highlight_01",
+    "name": "Lilac Soft Highlight",
+    "angle": 45,
+    "finish": "glossy",
+    "stops": [
+      {
+        "colorName": "Lilac",
+        "colorFamily": "purple",
+        "colorRef": "color_lilac_001",
+        "hexColor": "#C8A2C8",
+        "opacity": 1.0,
+        "location": 0.0
+      },
+      {
+        "colorName": "Soft White",
+        "colorFamily": "neutral",
+        "colorRef": "color_white_pure_001",
+        "hexColor": "#FFFFFF",
+        "opacity": 0.8,
+        "location": 1.0
+      }
+    ],
+    "tags": ["highlight","purple","glossy"]
+  }
+]

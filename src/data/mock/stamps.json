@@ -1,0 +1,56 @@
+[
+  {
+    "id": "stamp_gold_heart_outline_01",
+    "name": "Gold Heart Outline",
+    "instanceId": "1694021310000_789301",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/gold_heart_outline_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/gold_heart_outline.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/gold_heart_outline_mask.png",
+    "tags": ["heart", "gold", "accent", "valentine", "stamp"]
+  },
+  {
+    "id": "stamp_chrome_flame_center_01",
+    "name": "Chrome Flame Center",
+    "instanceId": "1694021310000_789302",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/chrome_flame_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/chrome_flame.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/chrome_flame_mask.png",
+    "tags": ["chrome", "flame", "silver", "center", "stamp"]
+  },
+  {
+    "id": "stamp_butterfly_gold_01",
+    "name": "Gold Butterfly",
+    "instanceId": "1694021310000_789303",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/butterfly_gold_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/butterfly_gold.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/butterfly_gold_mask.png",
+    "tags": ["butterfly", "gold", "insect", "kawaii", "stamp"]
+  },
+  {
+    "id": "stamp_heart_chrome_pink_01",
+    "name": "Chrome Pink Heart",
+    "instanceId": "1694021310000_789304",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/heart_chrome_pink_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/heart_chrome_pink.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/heart_chrome_pink_mask.png",
+    "tags": ["heart", "chrome", "pink", "valentine", "stamp"]
+  },
+  {
+    "id": "stamp_star_silver_y2k_01",
+    "name": "Silver Y2K Star",
+    "instanceId": "1694021310000_789305",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/star_silver_y2k_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/star_silver_y2k.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/star_silver_y2k_mask.png",
+    "tags": ["star", "silver", "y2k", "sparkle", "stamp"]
+  },
+  {
+    "id": "stamp_gold_outline_french_01",
+    "name": "Gold Outline French",
+    "instanceId": "1694021310000_789306",
+    "thumbnailUi": "https://cdn.nailzotica.com/stamps/gold_outline_french_thumb.png",
+    "canvasMaskUrl": "https://cdn.nailzotica.com/stamps/gold_outline_french.svg",
+    "unityMaskUrl": "https://cdn.nailzotica.com/stamps/gold_outline_french_mask.png",
+    "tags": ["gold", "outline", "french", "luxury", "stamp"]
+  }
+]

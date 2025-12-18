@@ -1,0 +1,73 @@
+[{
+  "id": "french_tip_classic_u_medium_01",
+  "name": "Classic U French (Medium)",
+  "style": "classic_u",
+  "variant": "medium",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_classic_u_med.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_classic_u_med.png",
+  "unityMaskUrl": "mask_french_tip_classic_u_med",
+  "tags": ["french","classic","neutral","medium"],
+  "compatibleShapes": ["square","almond","ballerina","duck"],
+  "compatibleLengths": ["short","medium","long"]
+},
+{
+  "id": "french_tip_glitter_u_short_01",
+  "name": "Glitter U French (Short)",
+  "style": "classic_u",
+  "variant": "short",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_glitter_u_short.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_glitter_u_short.png",
+  "unityMaskUrl": "mask_french_tip_glitter_u_short",
+  "tags": ["french","glitter","short","sparkle","white"],
+  "compatibleShapes": ["almond","square","duck"],
+  "compatibleLengths": ["short","medium"]
+},
+{
+  "id": "french_tip_rhinestone_arc_01",
+  "name": "Rhinestone Arc Overlay",
+  "style": "arc_overlay",
+  "variant": "universal",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_rhinestone_arc.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_rhinestone_arc.png",
+  "unityMaskUrl": "mask_french_tip_rhinestone_arc",
+  "tags": ["french","rhinestones","arc","silver","glam"],
+  "compatibleShapes": ["square","lipstick","almond"],
+  "compatibleLengths": ["short","medium"]
+},
+{
+  "id": "french_tip_outline_gold_01",
+  "name": "Gold Outline French",
+  "style": "outline",
+  "variant": "thin",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_outline_gold.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_outline_gold.png",
+  "unityMaskUrl": "mask_french_tip_outline_gold",
+  "tags": ["outline","gold","french","luxury","thin"],
+  "compatibleShapes": ["ballerina","almond","square"],
+  "compatibleLengths": ["long","extra_long"]
+},
+{
+  "id": "french_tip_vcut_high_01",
+  "name": "V-Cut French (High)",
+  "style": "vcut",
+  "variant": "high",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_vcut_high.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_vcut_high.png",
+  "unityMaskUrl": "mask_french_tip_vcut_high",
+  "tags": ["french","vcut","modern","sharp"],
+  "compatibleShapes": ["coffin","stiletto","ballerina"],
+  "compatibleLengths": ["medium","long"]
+},
+{
+  "id": "french_tip_deep_smile_01",
+  "name": "Deep Smile French",
+  "style": "deep_smile",
+  "variant": "low",
+  "thumbnailUi": "https://cdn.nailzotica.com/thumbnails/french_tip_deep_smile.png",
+  "canvasMaskUrl": "https://cdn.nailzotica.com/masks/french_tip_deep_smile.png",
+  "unityMaskUrl": "mask_french_tip_deep_smile",
+  "tags": ["french","deep","curve","classic"],
+  "compatibleShapes": ["almond","square"],
+  "compatibleLengths": ["medium","long"]
+}
+]
