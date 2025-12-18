@@ -1,5 +1,6 @@
 // src/controllers/nailAssistantController.js
 const nailAssistantService = require('../services/nailAssistantService');
+const crypto = require('crypto'); // built-in (no npm install)
 
 // ---------- helpers ----------
 const toStr = (v) => (v == null ? '' : String(v));
@@ -31,6 +32,18 @@ const cleanAutoTokens = (s) => {
   return s;
 };
 
+const genId = () => crypto.randomUUID();
+
+const stampDesign = (design, batchId) => {
+  if (!design || typeof design !== 'object') return design;
+  return {
+    ...design,
+    generationId: design.generationId || genId(),
+    generationBatchId: design.generationBatchId || batchId,
+    generatedAt: design.generatedAt || new Date().toISOString(),
+  };
+};
+
 // ---------- controller ----------
 exports.generateDesign = async (req, res, next) => {
   try {
@@ -48,14 +61,14 @@ exports.generateDesign = async (req, res, next) => {
     const count = toIntOrNull(countRaw);
 
     // ✅ mode: respect explicit mode; else infer from count; else default to single
-    const modeFromBody = normLowerOrNull(body.mode ?? body.variantsMode ?? body.type);
-    const inferredMode =
-      count != null && count > 1 ? 'variants' : 'single';
+    const modeFromBody = cleanAutoTokens(
+      normLowerOrNull(body.mode ?? body.variantsMode ?? body.type)
+    );
+    const inferredMode = count != null && count > 1 ? 'variants' : 'single';
     const mode = modeFromBody || inferredMode;
 
     // ✅ IMPORTANT:
     // Only accept explicit override fields, NEVER fall back to body.shape/body.length.
-    // This prevents clients that always send defaults from forcing overrides.
     const shapeOverride = cleanAutoTokens(normLowerOrNull(body.shapeOverride));
     const lengthOverride = cleanAutoTokens(normLowerOrNull(body.lengthOverride));
 
@@ -72,24 +85,14 @@ exports.generateDesign = async (req, res, next) => {
 
     // model selector (iconic | couture | muse | curated)
     const model = cleanAutoTokens(
-      normLowerOrNull(
-        body.model ??
-          body.aiModel ??
-          body.styleModel ??
-          body.variantModel ??
-          null
-      )
+      normLowerOrNull(body.model ?? body.aiModel ?? body.styleModel ?? body.variantModel)
     );
 
     // preferTrending (optional, only pass if provided)
     const preferTrending = toBoolOrNull(body.preferTrending);
 
     // Build payload: only include optional keys when actually provided
-    const payload = {
-      mode,
-      prompt,
-      seed,
-    };
+    const payload = { mode, prompt, seed };
 
     if (shapeOverride) payload.shapeOverride = shapeOverride;
     if (lengthOverride) payload.lengthOverride = lengthOverride;
@@ -105,11 +108,26 @@ exports.generateDesign = async (req, res, next) => {
 
     if (preferTrending !== null) payload.preferTrending = preferTrending;
 
-    // debug: allow turning on via request if you want
-    // const debug = toBoolOrNull(body.debug);
-    // if (debug !== null) payload.debug = debug;
+    // optional debug passthrough
+    const debug = toBoolOrNull(body.debug);
+    if (debug !== null) payload.debug = debug;
 
     const result = await nailAssistantService.generateDesign(payload);
+
+    // ✅ Add IDs to every returned design (and a batch id for the whole call)
+    const batchId = genId();
+    if (result?.nailDesign) result.nailDesign = stampDesign(result.nailDesign, batchId);
+    if (Array.isArray(result?.variants)) {
+      result.variants = result.variants.map((d) => stampDesign(d, batchId));
+    }
+    // convenience list for your client UI
+    result.designs = [
+      ...(result?.nailDesign ? [result.nailDesign] : []),
+      ...(Array.isArray(result?.variants) ? result.variants : []),
+    ];
+    result.generationBatchId = batchId;
+    result.generatedAt = new Date().toISOString();
+
     return res.json(result);
   } catch (err) {
     console.error('❌ Error in generateDesign controller:', err);
