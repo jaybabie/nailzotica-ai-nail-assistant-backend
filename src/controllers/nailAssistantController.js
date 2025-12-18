@@ -32,7 +32,13 @@ const cleanAutoTokens = (s) => {
   return s;
 };
 
-const genId = () => crypto.randomUUID();
+// Node versions can vary; randomUUID exists on modern Node, but provide a fallback.
+const genId = () =>
+  (typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`);
+
+const nowIso = () => new Date().toISOString();
 
 const stampDesign = (design, batchId) => {
   if (!design || typeof design !== 'object') return design;
@@ -40,7 +46,7 @@ const stampDesign = (design, batchId) => {
     ...design,
     generationId: design.generationId || genId(),
     generationBatchId: design.generationBatchId || batchId,
-    generatedAt: design.generatedAt || new Date().toISOString(),
+    generatedAt: design.generatedAt || nowIso(),
   };
 };
 
@@ -55,8 +61,7 @@ exports.generateDesign = async (req, res, next) => {
       return res.status(400).json({ error: 'prompt (string) is required' });
     }
 
-    // ✅ count first (used to infer mode)
-    // accept back-compat keys
+    // ✅ count first (used to infer mode) - accept back-compat keys
     const countRaw = body.count ?? body.n ?? body.variantsCount;
     const count = toIntOrNull(countRaw);
 
@@ -67,8 +72,7 @@ exports.generateDesign = async (req, res, next) => {
     const inferredMode = count != null && count > 1 ? 'variants' : 'single';
     const mode = modeFromBody || inferredMode;
 
-    // ✅ IMPORTANT:
-    // Only accept explicit override fields, NEVER fall back to body.shape/body.length.
+    // ✅ IMPORTANT: only accept explicit override fields; NEVER fall back to body.shape/body.length.
     const shapeOverride = cleanAutoTokens(normLowerOrNull(body.shapeOverride));
     const lengthOverride = cleanAutoTokens(normLowerOrNull(body.lengthOverride));
 
@@ -91,6 +95,9 @@ exports.generateDesign = async (req, res, next) => {
     // preferTrending (optional, only pass if provided)
     const preferTrending = toBoolOrNull(body.preferTrending);
 
+    // optional debug passthrough
+    const debug = toBoolOrNull(body.debug);
+
     // Build payload: only include optional keys when actually provided
     const payload = { mode, prompt, seed };
 
@@ -108,27 +115,34 @@ exports.generateDesign = async (req, res, next) => {
 
     if (preferTrending !== null) payload.preferTrending = preferTrending;
 
-    // optional debug passthrough
-    const debug = toBoolOrNull(body.debug);
     if (debug !== null) payload.debug = debug;
 
-    const result = await nailAssistantService.generateDesign(payload);
+    // Call service
+    const rawResult = await nailAssistantService.generateDesign(payload);
 
-    // ✅ Add IDs to every returned design (and a batch id for the whole call)
+    // ✅ Normalize + stamp response (don’t mutate service result in case it’s frozen/shared)
     const batchId = genId();
-    if (result?.nailDesign) result.nailDesign = stampDesign(result.nailDesign, batchId);
-    if (Array.isArray(result?.variants)) {
-      result.variants = result.variants.map((d) => stampDesign(d, batchId));
-    }
-    // convenience list for your client UI
-    result.designs = [
-      ...(result?.nailDesign ? [result.nailDesign] : []),
-      ...(Array.isArray(result?.variants) ? result.variants : []),
-    ];
-    result.generationBatchId = batchId;
-    result.generatedAt = new Date().toISOString();
+    const stamped = { ...(rawResult || {}) };
 
-    return res.json(result);
+    if (stamped.nailDesign) stamped.nailDesign = stampDesign(stamped.nailDesign, batchId);
+
+    if (Array.isArray(stamped.variants)) {
+      stamped.variants = stamped.variants.map((d) => stampDesign(d, batchId));
+    } else {
+      stamped.variants = [];
+    }
+
+    // Convenience list for client UI
+    stamped.designs = [
+      ...(stamped.nailDesign ? [stamped.nailDesign] : []),
+      ...stamped.variants,
+    ];
+
+    // Batch metadata (top-level)
+    stamped.generationBatchId = stamped.generationBatchId || batchId;
+    stamped.generatedAt = stamped.generatedAt || nowIso();
+
+    return res.json(stamped);
   } catch (err) {
     console.error('❌ Error in generateDesign controller:', err);
     if (!res.headersSent) {
@@ -138,6 +152,6 @@ exports.generateDesign = async (req, res, next) => {
         stack: err?.stack,
       });
     }
-    next(err);
+    return next(err);
   }
 };
