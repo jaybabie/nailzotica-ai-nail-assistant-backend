@@ -1,6 +1,7 @@
 // src/controllers/nailAssistantController.js
 const nailAssistantService = require('../services/nailAssistantService');
 const crypto = require('crypto');
+const { normalizeNailAssistantResponse } = require('../utils/normalizeNailAssistantResponse');
 
 // ---------- helpers ----------
 const toStr = (v) => (v == null ? '' : String(v));
@@ -13,7 +14,7 @@ const toIntOrNull = (v) => {
 
 const toBoolOrNull = (v) => {
   if (v === true || v === false) return v;
-  if (v == null || v === '') return null;
+  if (v == null) return null;
   const s = String(v).trim().toLowerCase();
   if (['1', 'true', 'yes', 'y', 'on', 'locked', 'lock'].includes(s)) return true;
   if (['0', 'false', 'no', 'n', 'off', 'unlock', 'unlocked'].includes(s)) return false;
@@ -31,7 +32,6 @@ const cleanAutoTokens = (s) => {
   return s;
 };
 
-// randomUUID fallback
 const genId = () =>
   (typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
@@ -49,32 +49,29 @@ const stampDesign = (design, batchId, createdAtIso) => {
   };
 };
 
-// Normalize the service meta.openai.model -> aiModelUsed
-const getAiModelUsed = (meta) =>
-  meta?.openai?.model ||
-  meta?.openai?.data?.model ||
-  meta?.aiModelUsed ||
-  null;
-
 // ---------- controller ----------
 exports.generateDesign = async (req, res, next) => {
   try {
     const body = req.body || {};
 
-    // ✅ prompt required
+    // Auth user (from requireAuth middleware)
+    const userId = req?.user?.uid || null;
+
+    // prompt required
     const prompt = toStr(body.prompt).trim();
     if (!prompt) return res.status(400).json({ error: 'prompt (string) is required' });
 
-    // ✅ count first (for inferred mode)
-    const countRaw = body.count ?? body.n ?? body.variantsCount;
-    const count = toIntOrNull(countRaw);
+    // count (designCount)
+    const countRaw = body.count ?? body.designCount ?? body.n ?? body.variantsCount;
+    const countParsed = toIntOrNull(countRaw);
+    const designCount = countParsed == null ? 1 : Math.max(1, countParsed);
 
-    // ✅ mode
+    // mode (infer variants if designCount > 1)
     const modeFromBody = cleanAutoTokens(normLowerOrNull(body.mode ?? body.variantsMode ?? body.type));
-    const inferredMode = count != null && count > 1 ? 'variants' : 'single';
+    const inferredMode = designCount > 1 ? 'variants' : 'single';
     const mode = modeFromBody || inferredMode;
 
-    // ✅ ONLY explicit overrides (never fall back to body.shape/body.length)
+    // overrides (only explicit override keys)
     const shapeOverride = cleanAutoTokens(normLowerOrNull(body.shapeOverride));
     const lengthOverride = cleanAutoTokens(normLowerOrNull(body.lengthOverride));
 
@@ -97,67 +94,65 @@ exports.generateDesign = async (req, res, next) => {
     // preferTrending (optional)
     const preferTrending = toBoolOrNull(body.preferTrending);
 
-    // debug passthrough
+    // optional debug
     const debug = toBoolOrNull(body.debug);
 
-    // ✅ Build payload
+    // payload to service
     const payload = { mode, prompt, seed };
 
     if (shapeOverride) payload.shapeOverride = shapeOverride;
     if (lengthOverride) payload.lengthOverride = lengthOverride;
-
     if (templateId) payload.templateId = templateId;
+
     if (lockTemplate !== null) payload.lockTemplate = lockTemplate;
     if (mirrorHands !== null) payload.mirrorHands = mirrorHands;
 
-    if (count != null) payload.count = count;
+    // IMPORTANT: service expects `count`
+    payload.count = designCount;
+
     if (model) payload.model = model;
     if (preferTrending !== null) payload.preferTrending = preferTrending;
     if (debug !== null) payload.debug = debug;
 
-    // ✅ Pull userId from auth middleware (source of truth)
-    // Fallback to body.userId ONLY if auth isn't present (useful for local testing)
-    const userId =
-      req?.user?.uid ||
-      (body.userId != null && String(body.userId).trim() ? String(body.userId).trim() : null);
-
-    // ✅ Generate
+    // Call service
     const rawResult = await nailAssistantService.generateDesign(payload);
 
-    // ✅ Stamp designs
-    const batchId = genId();
+    // Batch stamping
+    const generationBatchId = genId();
     const createdAt = nowIso();
 
-    const nailDesignStamped = rawResult?.nailDesign
-      ? stampDesign(rawResult.nailDesign, batchId, createdAt)
-      : null;
-
-    const variantsStamped = Array.isArray(rawResult?.variants)
-      ? rawResult.variants.map((d) => stampDesign(d, batchId, createdAt))
+    const main = rawResult?.nailDesign ? stampDesign(rawResult.nailDesign, generationBatchId, createdAt) : null;
+    const variants = Array.isArray(rawResult?.variants)
+      ? rawResult.variants.map((d) => stampDesign(d, generationBatchId, createdAt))
       : [];
 
+    // designs you actually want to return
     const generatedDesigns = [
-      ...(nailDesignStamped ? [nailDesignStamped] : []),
-      ...variantsStamped,
-    ];
+      ...(main ? [main] : []),
+      ...variants,
+    ].slice(0, designCount);
 
-    // ✅ Envelope response (matches your target shape)
+    // ai model used (from service meta.openai.model if present)
+    const aiModelUsed = rawResult?.meta?.openai?.model || rawResult?.meta?.openai?.data?.model || null;
+
+    // meta: keep it, but we’ll prune mirrorHands/count/model in the normalizer
     const meta = rawResult?.meta || null;
 
-    const response = {
-      userId,                         // ✅ added
-      prompt,                         // original prompt
-      model: model || meta?.model || null,
-      designCount: generatedDesigns.length,
-      mirrorHands: mirrorHands ?? meta?.mirrorHands ?? null,
-      createdAt,                      // ✅ top-level timestamp
-      generationBatchId: batchId,     // ✅ consistent batch id
-      aiModelUsed: getAiModelUsed(meta),
-      meta,                           // keep service meta (debug-friendly)
-      generatedDesigns,               // ✅ renamed designs list
-    };
+    // Build final response with finger naming + meta cleanup
+    const finalResponse = normalizeNailAssistantResponse({
+      userId,
+      prompt,
+      model: model || null,
+      designCount,
+      mirrorHands: mirrorHands ?? false,
+      createdAt,
+      generationBatchId,
+      aiModelUsed,
+      meta,
+      generatedDesigns,
+    });
 
-    return res.json(response);
+    return res.json(finalResponse);
   } catch (err) {
     console.error('❌ Error in generateDesign controller:', err);
     if (!res.headersSent) {
