@@ -1,6 +1,6 @@
 // src/controllers/nailAssistantController.js
 const nailAssistantService = require('../services/nailAssistantService');
-const crypto = require('crypto'); // built-in (no npm install)
+const crypto = require('crypto');
 
 // ---------- helpers ----------
 const toStr = (v) => (v == null ? '' : String(v));
@@ -13,11 +13,10 @@ const toIntOrNull = (v) => {
 
 const toBoolOrNull = (v) => {
   if (v === true || v === false) return v;
-  if (v == null) return null;
+  if (v == null || v === '') return null;
   const s = String(v).trim().toLowerCase();
   if (['1', 'true', 'yes', 'y', 'on', 'locked', 'lock'].includes(s)) return true;
-  if (['0', 'false', 'no', 'n', 'off', 'unlock', 'unlocked'].includes(s))
-    return false;
+  if (['0', 'false', 'no', 'n', 'off', 'unlock', 'unlocked'].includes(s)) return false;
   return null;
 };
 
@@ -32,7 +31,7 @@ const cleanAutoTokens = (s) => {
   return s;
 };
 
-// Node versions can vary; randomUUID exists on modern Node, but provide a fallback.
+// randomUUID fallback
 const genId = () =>
   (typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
@@ -40,39 +39,42 @@ const genId = () =>
 
 const nowIso = () => new Date().toISOString();
 
-const stampDesign = (design, batchId) => {
+const stampDesign = (design, batchId, createdAtIso) => {
   if (!design || typeof design !== 'object') return design;
   return {
     ...design,
     generationId: design.generationId || genId(),
     generationBatchId: design.generationBatchId || batchId,
-    generatedAt: design.generatedAt || nowIso(),
+    generatedAt: design.generatedAt || createdAtIso,
   };
 };
+
+// Normalize the service meta.openai.model -> aiModelUsed
+const getAiModelUsed = (meta) =>
+  meta?.openai?.model ||
+  meta?.openai?.data?.model ||
+  meta?.aiModelUsed ||
+  null;
 
 // ---------- controller ----------
 exports.generateDesign = async (req, res, next) => {
   try {
     const body = req.body || {};
 
-    // prompt required
+    // ✅ prompt required
     const prompt = toStr(body.prompt).trim();
-    if (!prompt) {
-      return res.status(400).json({ error: 'prompt (string) is required' });
-    }
+    if (!prompt) return res.status(400).json({ error: 'prompt (string) is required' });
 
-    // ✅ count first (used to infer mode) - accept back-compat keys
+    // ✅ count first (for inferred mode)
     const countRaw = body.count ?? body.n ?? body.variantsCount;
     const count = toIntOrNull(countRaw);
 
-    // ✅ mode: respect explicit mode; else infer from count; else default to single
-    const modeFromBody = cleanAutoTokens(
-      normLowerOrNull(body.mode ?? body.variantsMode ?? body.type)
-    );
+    // ✅ mode
+    const modeFromBody = cleanAutoTokens(normLowerOrNull(body.mode ?? body.variantsMode ?? body.type));
     const inferredMode = count != null && count > 1 ? 'variants' : 'single';
     const mode = modeFromBody || inferredMode;
 
-    // ✅ IMPORTANT: only accept explicit override fields; NEVER fall back to body.shape/body.length.
+    // ✅ ONLY explicit overrides (never fall back to body.shape/body.length)
     const shapeOverride = cleanAutoTokens(normLowerOrNull(body.shapeOverride));
     const lengthOverride = cleanAutoTokens(normLowerOrNull(body.lengthOverride));
 
@@ -83,66 +85,79 @@ exports.generateDesign = async (req, res, next) => {
     // mirror hands
     const mirrorHands = toBoolOrNull(body.mirrorHands);
 
-    // seed: always-different UX if not provided
+    // seed
     let seed = toIntOrNull(body.seed);
     if (seed == null) seed = Date.now();
 
-    // model selector (iconic | couture | muse | curated)
+    // model selector
     const model = cleanAutoTokens(
       normLowerOrNull(body.model ?? body.aiModel ?? body.styleModel ?? body.variantModel)
     );
 
-    // preferTrending (optional, only pass if provided)
+    // preferTrending (optional)
     const preferTrending = toBoolOrNull(body.preferTrending);
 
-    // optional debug passthrough
+    // debug passthrough
     const debug = toBoolOrNull(body.debug);
 
-    // Build payload: only include optional keys when actually provided
+    // ✅ Build payload
     const payload = { mode, prompt, seed };
 
     if (shapeOverride) payload.shapeOverride = shapeOverride;
     if (lengthOverride) payload.lengthOverride = lengthOverride;
 
     if (templateId) payload.templateId = templateId;
-
     if (lockTemplate !== null) payload.lockTemplate = lockTemplate;
     if (mirrorHands !== null) payload.mirrorHands = mirrorHands;
 
     if (count != null) payload.count = count;
-
     if (model) payload.model = model;
-
     if (preferTrending !== null) payload.preferTrending = preferTrending;
-
     if (debug !== null) payload.debug = debug;
 
-    // Call service
+    // ✅ Pull userId from auth middleware (source of truth)
+    // Fallback to body.userId ONLY if auth isn't present (useful for local testing)
+    const userId =
+      req?.user?.uid ||
+      (body.userId != null && String(body.userId).trim() ? String(body.userId).trim() : null);
+
+    // ✅ Generate
     const rawResult = await nailAssistantService.generateDesign(payload);
 
-    // ✅ Normalize + stamp response (don’t mutate service result in case it’s frozen/shared)
+    // ✅ Stamp designs
     const batchId = genId();
-    const stamped = { ...(rawResult || {}) };
+    const createdAt = nowIso();
 
-    if (stamped.nailDesign) stamped.nailDesign = stampDesign(stamped.nailDesign, batchId);
+    const nailDesignStamped = rawResult?.nailDesign
+      ? stampDesign(rawResult.nailDesign, batchId, createdAt)
+      : null;
 
-    if (Array.isArray(stamped.variants)) {
-      stamped.variants = stamped.variants.map((d) => stampDesign(d, batchId));
-    } else {
-      stamped.variants = [];
-    }
+    const variantsStamped = Array.isArray(rawResult?.variants)
+      ? rawResult.variants.map((d) => stampDesign(d, batchId, createdAt))
+      : [];
 
-    // Convenience list for client UI
-    stamped.designs = [
-      ...(stamped.nailDesign ? [stamped.nailDesign] : []),
-      ...stamped.variants,
+    const generatedDesigns = [
+      ...(nailDesignStamped ? [nailDesignStamped] : []),
+      ...variantsStamped,
     ];
 
-    // Batch metadata (top-level)
-    stamped.generationBatchId = stamped.generationBatchId || batchId;
-    stamped.generatedAt = stamped.generatedAt || nowIso();
+    // ✅ Envelope response (matches your target shape)
+    const meta = rawResult?.meta || null;
 
-    return res.json(stamped);
+    const response = {
+      userId,                         // ✅ added
+      prompt,                         // original prompt
+      model: model || meta?.model || null,
+      designCount: generatedDesigns.length,
+      mirrorHands: mirrorHands ?? meta?.mirrorHands ?? null,
+      createdAt,                      // ✅ top-level timestamp
+      generationBatchId: batchId,     // ✅ consistent batch id
+      aiModelUsed: getAiModelUsed(meta),
+      meta,                           // keep service meta (debug-friendly)
+      generatedDesigns,               // ✅ renamed designs list
+    };
+
+    return res.json(response);
   } catch (err) {
     console.error('❌ Error in generateDesign controller:', err);
     if (!res.headersSent) {

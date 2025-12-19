@@ -16,9 +16,9 @@
       "emissionUrl": "https://cdn.nailzotica.com/charms/gold_heart_emission.png",
       "glossUrl": "https://cdn.nailzotica.com/charms/gold_heart_gloss.png",
       "radiusMm": 3.0,
+      "isTrending": true,
+      "trendingScore": 64,
       "tags": ["heart", "gold", "accent", "valentine"],
-      "compatibleShapes": ["square", "almond", "ballerina", "stiletto", "duck"],
-      "compatibleLengths": ["short", "medium", "long", "extra_long"]
     },
     {
       "id": "stud_square_gold_3mm_01",
@@ -37,9 +37,9 @@
       "emissionUrl": "https://cdn.nailzotica.com/charms/gold_stud_square_emission.png",
       "glossUrl": "https://cdn.nailzotica.com/charms/gold_stud_square_gloss.png",
       "radiusMm": 1.5,
+      "isTrending": true,
+      "trendingScore": 88,
       "tags": ["stud", "square", "gold", "luxury"],
-      "compatibleShapes": ["ballerina", "square", "almond", "stiletto"],
-      "compatibleLengths": ["medium", "long", "extra_long"]
     },
     {
       "id": "charm_butterfly_lilac_08",
@@ -58,9 +58,9 @@
       "emissionUrl": "https://cdn.nailzotica.com/charms/butterfly_lilac_emission.png",
       "glossUrl": "https://cdn.nailzotica.com/charms/butterfly_lilac_gloss.png",
       "radiusMm": 4.0,
+      "isTrending": false,
+      "trendingScore": 4,
       "tags": ["butterfly", "kawaii", "lilac", "accent charm"],
-      "compatibleShapes": ["almond", "duck", "stiletto"],
-      "compatibleLengths": ["medium", "long", "extra_long"]
     },
     {
       "id": "stone_round_silver_2mm_01",
@@ -80,8 +80,8 @@
       "glossUrl": "https://cdn.nailzotica.com/stones/silver_round_2mm_gloss.png",
       "radiusMm": 1.0,
       "tags": ["rhinestone", "silver", "sparkle", "bling"],
-      "compatibleShapes": ["square", "almond", "duck", "ballerina", "lipstick"],
-      "compatibleLengths": ["short", "medium", "long"]
+      "isTrending": true,
+      "trendingScore": 64,
     },
     {
       "id": "stone_micro_silver_1mm_01",
@@ -101,8 +101,6 @@
       "glossUrl": "https://cdn.nailzotica.com/stones/silver_round_1mm_gloss.png",
       "radiusMm": 0.5,
       "tags": ["rhinestone", "silver", "cuticle", "minimal"],
-      "compatibleShapes": ["duck", "square", "almond"],
-      "compatibleLengths": ["short", "medium"]
     },
     {
       "id": "stud_heart_pink_03",
@@ -122,8 +120,6 @@
       "glossUrl": "https://cdn.nailzotica.com/charms/pink_heart_stud_gloss.png",
       "radiusMm": 1.2,
       "tags": ["heart", "pink", "punk glam", "y2k"],
-      "compatibleShapes": ["stiletto", "square", "almond"],
-      "compatibleLengths": ["long", "extra_long"]
     },
     {
       "id": "stone_crystal_ab_3mm_01",
@@ -143,7 +139,5 @@
       "glossUrl": "https://cdn.nailzotica.com/stones/ab_crystal_3mm_gloss.png",
       "radiusMm": 1.5,
       "tags": ["iridescent", "kawaii", "sparkle", "bling"],
-      "compatibleShapes": ["almond", "duck", "ballerina", "stiletto"],
-      "compatibleLengths": ["medium", "long", "extra_long"]
     }
   ]
