@@ -1,5 +1,6 @@
 // src/controllers/nailAssistantController.js
 const nailAssistantService = require('../services/nailAssistantService');
+const { normalizeNailAssistantResponse } = require('../utils/normalizeNailAssistantResponse');
 const crypto = require('crypto');
 
 // ---------- helpers ----------
@@ -32,46 +33,20 @@ const genId = () =>
     : `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`);
 const nowIso = () => new Date().toISOString();
 
-// Your canonical 10-finger order (matches your “named” requirement)
-const FINGER_KEYS = [
-  'left_thumb',
-  'left_index',
-  'left_middle',
-  'left_ring',
-  'left_pinky',
-  'right_thumb',
-  'right_index',
-  'right_middle',
-  'right_ring',
-  'right_pinky',
-];
-
-function fingersArrayToNamedMap(fingersArr) {
-  const arr = Array.isArray(fingersArr) ? fingersArr : [];
-  const out = {};
-  for (let i = 0; i < FINGER_KEYS.length; i++) out[FINGER_KEYS[i]] = arr[i] ?? null;
-  return out;
-}
-
 function stripMetaDuplicates(meta) {
   const m = meta && typeof meta === 'object' ? { ...meta } : {};
-  // Remove the repeated top-level-ish fields you don’t want inside meta:
   delete m.mirrorHands;
   delete m.count;
   delete m.model;
+  delete m.designCount;
   return m;
 }
 
-function stampDesign(design, batchId) {
-  if (!design || typeof design !== 'object') return design;
-  return {
-    ...design,
-    generationId: design.generationId || genId(),
-    generationBatchId: design.generationBatchId || batchId,
-    generatedAt: design.generatedAt || nowIso(),
-    // Add named fingers while keeping original array as-is
-    fingersNamed: fingersArrayToNamedMap(design.fingers),
-  };
+const ALLOWED_COMPLEXITY = new Set(['low', 'medium', 'complex']);
+function normalizeComplexity(v) {
+  const s = cleanAutoTokens(normLowerOrNull(v));
+  if (!s) return null;
+  return ALLOWED_COMPLEXITY.has(s) ? s : null;
 }
 
 // ---------- controller ----------
@@ -80,63 +55,50 @@ exports.generateDesign = async (req, res, next) => {
     const body = req.body || {};
     const userId = req?.user?.uid || null;
 
-    // 🔎 DEBUG (leave in until fixed)
-    console.log('🧾 controller req.body =', body);
-
     const prompt = toStr(body.prompt).trim();
-    if (!prompt) {
-      return res.status(400).json({ error: 'prompt (string) is required' });
-    }
+    if (!prompt) return res.status(400).json({ error: 'prompt (string) is required' });
 
-    // read inputs (your curl uses these exact keys)
     const mode = cleanAutoTokens(normLowerOrNull(body.mode)) || 'single';
     const count = toIntOrNull(body.count);
     const mirrorHands = toBoolOrNull(body.mirrorHands);
     const model = cleanAutoTokens(normLowerOrNull(body.model));
+    const complexity = normalizeComplexity(body.complexity); // ✅ accept low/medium/complex
+
     let seed = toIntOrNull(body.seed);
     if (seed == null) seed = Date.now();
 
-    // Build payload for service
+    // payload -> service
     const payload = { prompt, mode, seed };
     if (count != null) payload.count = count;
     if (mirrorHands !== null) payload.mirrorHands = mirrorHands;
     if (model) payload.model = model;
+    if (complexity) payload.complexity = complexity;
 
-    // ✅ Call service (this is the critical part)
-    const raw = await nailAssistantService.generateDesign(payload);
+    const serviceResult = await nailAssistantService.generateDesign(payload);
 
-    // Raw designs list coming back (service typically returns nailDesign + variants)
-    const batchId = raw?.generationBatchId || genId();
-
-    const main = raw?.nailDesign ? stampDesign(raw.nailDesign, batchId) : null;
-    const variants = Array.isArray(raw?.variants)
-      ? raw.variants.map((d) => stampDesign(d, batchId))
-      : [];
-
-    const generatedDesigns = [...(main ? [main] : []), ...variants];
-
-    // aiModelUsed: prefer service meta openai.model if present
-    const aiModelUsed =
-      raw?.meta?.openai?.model ||
-      raw?.meta?.openai?.data?.model ||
-      raw?.aiModelUsed ||
-      null;
-
-    // ✅ Final response in YOUR format
-    const response = {
+    // ✅ normalize into YOUR exact schema (named 10-finger map)
+    const normalized = normalizeNailAssistantResponse({
       userId,
-      prompt,
-      model: model || null,
-      designCount: generatedDesigns.length,
-      mirrorHands: mirrorHands ?? null,
-      createdAt: nowIso(),
+      requestPayload: payload,
+      serviceResult,
+    });
 
-      generationBatchId: batchId,
-      aiModelUsed,
+    // ✅ ensure missing fields never break clients
+    const response = {
+      userId: normalized.userId ?? userId ?? null,
+      prompt: normalized.prompt ?? prompt,
+      model: normalized.model ?? model ?? null,
+      complexity: complexity ?? normalized?.meta?.chosenComplexity ?? normalized?.meta?.complexity ?? null, // ✅ top-level if you want it
+      designCount: normalized.designCount ?? (Array.isArray(normalized.generatedDesigns) ? normalized.generatedDesigns.length : 0),
+      mirrorHands: normalized.mirrorHands ?? (mirrorHands ?? null),
+      createdAt: normalized.createdAt ?? nowIso(),
 
-      meta: stripMetaDuplicates(raw?.meta),
+      generationBatchId: normalized.generationBatchId ?? genId(),
+      aiModelUsed: normalized.aiModelUsed ?? null,
 
-      generatedDesigns,
+      meta: stripMetaDuplicates(normalized.meta),
+
+      generatedDesigns: Array.isArray(normalized.generatedDesigns) ? normalized.generatedDesigns : [],
     };
 
     return res.json(response);

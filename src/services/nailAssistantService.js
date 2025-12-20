@@ -1045,27 +1045,44 @@ async function generateOneDesign({
   prompt,
   shapeOverride,
   lengthOverride,
-  templateId,     // Firestore doc id coming from variants (keep it)
+  templateId,     // Firestore doc id coming from variants (base template for this design)
   mirrorHands,
 
-  // ✅ NEW (safe optional inputs so swaps/debug never ReferenceError)
+  // optional inputs
   model,
   seed,
   debug,
   preferTrending,
+
+  // ✅ NEW
+  complexity,
 }) {
   // ----------------------------
   // Helpers (local + safe)
   // ----------------------------
-  function resolveFingerIndex({ hand, finger }) {
-    const h = (hand || '').toLowerCase();
-    const f = (finger || '').toLowerCase();
-    if (h === 'left' && FINGER_MAP?.left?.[f] !== undefined) return FINGER_MAP.left[f];
-    if (h === 'right' && FINGER_MAP?.right?.[f] !== undefined) return FINGER_MAP.right[f];
-    return null;
-  }
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const safePrompt = String(prompt || '').trim();
+  const promptLower = safePrompt.toLowerCase();
+  const mirrorOn = mirrorHands === true;
 
-  function extractFingerDirectives(rawPrompt) {
+  const safeJsonParse = (v) => {
+    try {
+      if (!v) return null;
+      if (typeof v === 'object') return v;
+      return JSON.parse(String(v));
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // canonical 0..9 mapping
+  const IDX = {
+    L: { thumb: 0, index: 1, middle: 2, ring: 3, pinky: 4 },
+    R: { thumb: 5, index: 6, middle: 7, ring: 8, pinky: 9 },
+  };
+
+  function parseFingerDirectives(rawPrompt) {
+    // supports: "left thumb ..." or "right ring ..." or "ring ..." (applies to right + left if mirror)
     const text = (rawPrompt || '').toLowerCase();
     const parts = text.split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -1087,35 +1104,36 @@ async function generateOneDesign({
     return directives;
   }
 
-  function buildOverridesByIndex(rawPrompt, mirrorOn) {
-    const directives = extractFingerDirectives(rawPrompt);
-    const overrides = {};
+  function buildOverrideIndexes(rawPrompt, mirrorOn) {
+    const directives = parseFingerDirectives(rawPrompt);
+    const idxs = new Set();
 
     for (const d of directives) {
-      if (d.hand) {
-        const idx = resolveFingerIndex(d);
-        if (idx !== null) overrides[idx] = d.text;
-        continue;
-      }
-
-      const rightIdx = resolveFingerIndex({ hand: 'right', finger: d.finger });
-      if (rightIdx !== null) overrides[rightIdx] = d.text;
-
-      if (mirrorOn === true) {
-        const leftIdx = resolveFingerIndex({ hand: 'left', finger: d.finger });
-        if (leftIdx !== null) overrides[leftIdx] = d.text;
+      if (d.hand === 'left') idxs.add(IDX.L[d.finger]);
+      else if (d.hand === 'right') idxs.add(IDX.R[d.finger]);
+      else {
+        // no hand specified
+        idxs.add(IDX.R[d.finger]);
+        if (mirrorOn) idxs.add(IDX.L[d.finger]);
       }
     }
-
-    return overrides;
+    return Array.from(idxs).filter((n) => Number.isInteger(n) && n >= 0 && n <= 9);
   }
 
-  const norm = (v) => String(v || '').trim().toLowerCase();
-  const safePrompt = String(prompt || '').trim();
-  const promptLower = safePrompt.toLowerCase();
-  const mirrorOn = mirrorHands === true;
-
-  const requestedTemplateId = templateId != null ? String(templateId).trim() : null;
+  // deterministic shuffle using seed
+  let tSeed = Number.isFinite(Number(seed)) ? Number(seed) : Date.now();
+  const rand = () => {
+    tSeed = (tSeed * 9301 + 49297) % 233280;
+    return tSeed / 233280;
+  };
+  const shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
 
   if (!safePrompt) {
     return {
@@ -1124,7 +1142,8 @@ async function generateOneDesign({
       error: 'Prompt is required',
       meta: {
         mode: 'single',
-        serviceVersion: SERVICE_VERSION,
+        serviceVersion:
+          typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
         serviceFile: __filename,
       },
     };
@@ -1133,33 +1152,19 @@ async function generateOneDesign({
   // ----------------------------
   // 1) Shape + length
   // ----------------------------
-  let { shape, length } = resolveShapeLength({
-    promptLower,
-    shapeOverride,
-    lengthOverride,
-  });
+  let { shape, length } = (typeof resolveShapeLength === 'function')
+    ? resolveShapeLength({ promptLower, shapeOverride, lengthOverride })
+    : { shape: shapeOverride, length: lengthOverride };
 
-  const resolvedShape = norm(shape) || 'square';
-  const resolvedLength = norm(length) || 'medium';
+  shape = norm(shape) || 'square';
+  length = norm(length) || 'medium';
 
-  shape = resolvedShape;
-  length = resolvedLength;
+  const resolvedShapeOriginal = shape;
+  const resolvedLengthOriginal = length;
 
   // ----------------------------
   // 2) Load collections
   // ----------------------------
-  let colors = [];
-  let templates = [];
-
-  let frenchTips = [];
-  let patterns = [];
-  let charms = [];
-  let stamps = [];
-  let stickers = [];
-  let gelArt3D = [];
-  let effects = [];
-  let colorLibrary = [];
-
   const safeGet = (name) => {
     try {
       const v = getCollection(name);
@@ -1169,56 +1174,67 @@ async function generateOneDesign({
     }
   };
 
-  // ---- Colors ----
-  try {
-    colors = safeGet('color_library');
-  } catch (e) {
-    console.warn('⚠️ color_library load failed:', e?.message || e);
-  }
-  colorLibrary = Array.isArray(colors) ? colors : [];
+  const colorLibrary = safeGet('color_library');
 
-  // ---- Templates ----
-  try {
-    templates = safeGet('finger_templates');
-    if (!templates.length) templates = safeGet('templates');
-  } catch (e) {
-    console.warn('⚠️ templates load failed:', e?.message || e);
-    templates = [];
-  }
+  let templates = safeGet('finger_templates');
+  if (!templates.length) templates = safeGet('templates');
 
-  // ✅ Normalize templates if you have getTemplatesCatalog; otherwise use raw
   const normalizedTemplates =
     (typeof getTemplatesCatalog === 'function')
       ? getTemplatesCatalog(templates)
       : (Array.isArray(templates) ? templates : []);
 
-  // ✅ cache templates so variants can reuse the same list
-  __TEMPLATES_CACHE = Array.isArray(normalizedTemplates) ? normalizedTemplates : [];
+  try { global.__TEMPLATES_CACHE = Array.isArray(normalizedTemplates) ? normalizedTemplates : []; } catch (_) {}
 
-  // ---- Asset catalogs (swaps) ----
-  frenchTips = safeGet('french_tips'); if (!frenchTips.length) frenchTips = safeGet('french_tip');
-  patterns = safeGet('pattern_library'); if (!patterns.length) patterns = safeGet('patterns');
-  charms = safeGet('charm_library'); if (!charms.length) charms = safeGet('charms');
-  stamps = safeGet('stamp_library'); if (!stamps.length) stamps = safeGet('stamps');
-  stickers = safeGet('sticker_library'); if (!stickers.length) stickers = safeGet('stickers');
-  gelArt3D = safeGet('gel_art_3d'); if (!gelArt3D.length) gelArt3D = safeGet('gelArt3D');
-  effects = safeGet('effect_library'); if (!effects.length) effects = safeGet('effects');
+  const frenchTips = (() => {
+    const a = safeGet('french_tips');
+    return a.length ? a : safeGet('french_tip');
+  })();
+  const patterns = (() => {
+    const a = safeGet('pattern_library');
+    return a.length ? a : safeGet('patterns');
+  })();
+  const charms = (() => {
+    const a = safeGet('charm_library');
+    return a.length ? a : safeGet('charms');
+  })();
+  const stamps = (() => {
+    const a = safeGet('stamp_library');
+    return a.length ? a : safeGet('stamps');
+  })();
+  const stickers = (() => {
+    const a = safeGet('sticker_library');
+    return a.length ? a : safeGet('stickers');
+  })();
+  const gelArt3D = (() => {
+    const a = safeGet('gel_art_3d');
+    return a.length ? a : safeGet('gelArt3D');
+  })();
+  const effects = (() => {
+    const a = safeGet('effect_library');
+    return a.length ? a : safeGet('effects');
+  })();
 
   // ----------------------------
   // 3) Base color
   // ----------------------------
-  const colorDoc = matchBaseColor(safePrompt, colors);
-  const base = buildBaseFromColorDoc(colorDoc);
+  const colorDoc = (typeof matchBaseColor === 'function')
+    ? matchBaseColor(safePrompt, colorLibrary)
+    : null;
+
+  const base = (typeof buildBaseFromColorDoc === 'function')
+    ? buildBaseFromColorDoc(colorDoc)
+    : { type: 'solid', colorName: null, colorFamily: null, colorRef: null, finish: 'glossy', opacity: 1, hexColor: null, gradient: null, visible: true };
 
   // ----------------------------
-  // 4) Template selection (Option A: relax length if needed)
+  // 4) Template selection (base template for this design)
   // ----------------------------
   const templatesCount = Array.isArray(normalizedTemplates) ? normalizedTemplates.length : 0;
 
   const matchesShape = (t, needShape) => {
     const ts = norm(t?.shape || t?.nailShape);
     if (!needShape) return true;
-    if (!ts) return true; // if missing, don't block
+    if (!ts) return true;
     return ts === needShape;
   };
 
@@ -1257,10 +1273,12 @@ async function generateOneDesign({
     return (pool && pool[0]) ? pool[0] : null;
   };
 
+  const requestedTemplateId = templateId != null ? String(templateId).trim() : null;
+
   let chosenTemplate = null;
   let relaxedLengthUsed = false;
 
-  // 4a) If templateId provided (from variants) ALWAYS honor it if it exists
+  // 4a) If templateId provided (from variants) honor if it exists
   if (requestedTemplateId) {
     chosenTemplate = findByDocId(requestedTemplateId);
   }
@@ -1293,13 +1311,12 @@ async function generateOneDesign({
       error: `No templates found for shape="${shape}" length="${length}"`,
       meta: {
         mode: 'single',
-        serviceVersion: SERVICE_VERSION,
+        serviceVersion:
+          typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
         serviceFile: __filename,
         resolved: { shape, length },
         templatesCount,
         requestedTemplateId: requestedTemplateId || null,
-
-        // ✅ helpful for your jq debug
         chosenTemplateDocId: null,
         finalTemplateId: null,
         relaxedLengthUsed: false,
@@ -1313,75 +1330,144 @@ async function generateOneDesign({
 
   const chosenTemplateLength = norm(chosenTemplate?.length || chosenTemplate?.nailLength) || length;
 
-  // ✅ IMPORTANT: if we relaxed length OR templateId forced a different length, sync output length
-  // (This fixes your "coffin+medium error" scenario)
+  // if template forced a different length, sync output length
   if (chosenTemplateLength && chosenTemplateLength !== length) {
     length = chosenTemplateLength;
   }
 
-  const complexity = String(chosenTemplate?.complexity || 'low').trim().toLowerCase();
-
-  const parsedFingerDesign = safeJsonParse(chosenTemplate?.fingerDesign);
-
-  const templateKeyFromFingerDesign =
-    parsedFingerDesign && typeof parsedFingerDesign === 'object'
-      ? (parsedFingerDesign.templateId || parsedFingerDesign.templateKey || parsedFingerDesign.id || null)
-      : null;
+  // ----------------------------
+  // ✅ 4c) Complexity decision (request > template > default)
+  // ----------------------------
+  const cxIn = norm(complexity || '');
+  const chosenComplexity =
+    (['low', 'medium', 'complex'].includes(cxIn) ? cxIn : null) ||
+    norm(chosenTemplate?.complexity || 'low') ||
+    'low';
 
   // ----------------------------
-  // 5) Per-finger directives -> override indexes / accents
+  // ✅ 4d) Build a small template set for per-finger variety
+  // low -> 2, medium -> 3, complex -> 5
   // ----------------------------
-  const overridesByIndex = buildOverridesByIndex(safePrompt, mirrorOn);
-  const overrideIndexes = Object.keys(overridesByIndex)
-    .map((n) => parseInt(n, 10))
-    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 9);
+  const wantUnique =
+    chosenComplexity === 'complex' ? 5 :
+    chosenComplexity === 'medium' ? 3 :
+    2;
 
-  const accentIndexes =
-    overrideIndexes.length > 0
-      ? overrideIndexes
-      : resolveAccentIndexes({ promptLower, complexity });
+  const strictPool = (normalizedTemplates || []).filter((t) => matchesShapeLength(t, shape, length));
+  const shapeOnlyPool = (normalizedTemplates || []).filter((t) => matchesShape(t, shape));
+  const pool = strictPool.length ? strictPool : shapeOnlyPool;
 
-  const accentSet = new Set(Array.isArray(accentIndexes) ? accentIndexes : []);
+  const getDocId = (t) => String(t?.templateId ?? t?.id ?? '').trim();
 
-  // ----------------------------
-  // 6) Build fingers
-  // ----------------------------
-  let fingers;
+  const baseTpl = chosenTemplate;
+  const baseTplId = getDocId(baseTpl);
 
-  if (parsedFingerDesign) {
-    fingers = Array.from({ length: 10 }, (_, idx) => {
-      if (!accentSet.has(idx)) return buildBaseOnlyFinger(base);
-      return buildFingerFromFingerDesign(parsedFingerDesign, base);
-    });
-  } else {
-    fingers = Array.from({ length: 10 }, () => buildBaseOnlyFinger(base));
+  const otherTpls = shuffle(
+    pool.filter((t) => getDocId(t) && getDocId(t) !== baseTplId)
+  );
+
+  const pickedTpls = [baseTpl, ...otherTpls].filter(Boolean).slice(0, Math.min(wantUnique, 1 + otherTpls.length));
+
+  const accentTpls = pickedTpls.slice(1);
+
+  const accentAt = (i) => {
+    if (!accentTpls.length) return baseTpl;
+    return accentTpls[i % accentTpls.length];
+  };
+
+  function buildFingerFromTemplateDoc(tplDoc, base) {
+    const fd = safeJsonParse(tplDoc?.fingerDesign);
+
+    const core = fd
+      ? buildFingerFromFingerDesign(fd, base)
+      : buildBaseOnlyFinger(base);
+
+    return {
+      // ✅ per-finger template identity
+      templateId: getDocId(tplDoc) || null,
+      templateName: tplDoc?.name ?? tplDoc?.label ?? null,
+      shape: tplDoc?.shape ?? shape,
+      length: tplDoc?.length ?? length,
+      uiImageUrl: tplDoc?.uiImageUrl ?? tplDoc?.thumbnailUi ?? tplDoc?.imageUrl ?? '',
+      modelUrl: tplDoc?.modelUrl ?? '',
+
+      templateRef: fd?.templateRef ?? (
+        fd?.templateId || fd?.templateName
+          ? { id: fd?.templateId ?? null, name: fd?.templateName ?? null }
+          : null
+      ),
+
+      ...core,
+    };
   }
 
-  if (overrideIndexes.length > 0) {
-    fingers = fingers.map((f, idx) => (accentSet.has(idx) ? f : buildBaseOnlyFinger(base)));
+  // ----------------------------
+  // 5) Per-finger directives -> override indexes
+  // ----------------------------
+  const overrideIndexes = buildOverrideIndexes(safePrompt, mirrorOn);
+
+  // choose accent indices by complexity
+  const leftAccents =
+    chosenComplexity === 'complex' ? [IDX.L.thumb, IDX.L.index, IDX.L.middle, IDX.L.ring] :
+    chosenComplexity === 'medium' ? [IDX.L.thumb, IDX.L.ring] :
+    [IDX.L.ring];
+
+  const rightAccentsNonMirror =
+    chosenComplexity === 'complex' ? [IDX.R.thumb, IDX.R.index, IDX.R.middle, IDX.R.ring] :
+    chosenComplexity === 'medium' ? [IDX.R.thumb, IDX.R.ring] :
+    [IDX.R.thumb]; // low + non-mirror: make it different than left ring
+
+  // if overrides exist, use them as the only accents
+  const finalAccentIndexes = overrideIndexes.length ? overrideIndexes : (
+    mirrorOn
+      ? leftAccents // right will be mirrored later
+      : [...leftAccents, ...rightAccentsNonMirror]
+  );
+
+  const accentSet = new Set(finalAccentIndexes);
+
+  // ----------------------------
+  // 6) Build fingers (10)
+  // - start all as base template
+  // - set accents using accent templates (cycled)
+  // ----------------------------
+  let fingers = Array.from({ length: 10 }, () => buildFingerFromTemplateDoc(baseTpl, base));
+
+  let accentCounter = 0;
+
+  // left hand accents always first (more predictable)
+  const orderedAccentIdx = [
+    IDX.L.thumb, IDX.L.index, IDX.L.middle, IDX.L.ring, IDX.L.pinky,
+    IDX.R.thumb, IDX.R.index, IDX.R.middle, IDX.R.ring, IDX.R.pinky,
+  ].filter((i) => accentSet.has(i));
+
+  for (const idx of orderedAccentIdx) {
+    const tpl = accentAt(accentCounter);
+    fingers[idx] = buildFingerFromTemplateDoc(tpl, base);
+    accentCounter++;
   }
 
   // ----------------------------
-  // 7) Assemble design
+  // 7) Assemble design-level nailDesign
+  // design-level templateId stays the "base" template doc id for the design
   // ----------------------------
   const finalTemplateId =
     requestedTemplateId ||
-    chosenTemplateDocId ||
+    baseTplId ||
     `template_${shape}_${length}_basic`;
 
   let nailDesign = {
     shape,
     length,
-    templateId: finalTemplateId,              // ✅ Firestore doc id always
-    templateKey: templateKeyFromFingerDesign
-      ? String(templateKeyFromFingerDesign).trim()
-      : null,
+    templateId: finalTemplateId,
+    templateKey: null, // keep stable; optional
     base,
     fingers,
   };
 
   // ----------------------------
   // 8) apply swaps (ASYNC, per-finger)
+  // ✅ if mirrorHands true: swap only left then mirror
   // ----------------------------
   let swapsApplied = false;
 
@@ -1408,7 +1494,9 @@ async function generateOneDesign({
         modelForSwaps === 'curated' ||
         modelForSwaps === 'muse';
 
-      for (let i = 0; i < nailDesign.fingers.length; i++) {
+      const indicesToSwap = mirrorOn ? [0,1,2,3,4] : [0,1,2,3,4,5,6,7,8,9];
+
+      for (const i of indicesToSwap) {
         nailDesign.fingers[i] = await applySwaps(
           nailDesign.fingers[i],
           intents,
@@ -1438,6 +1526,7 @@ async function generateOneDesign({
 
   // ----------------------------
   // 9) mirrorHands (optional)
+  // IMPORTANT: this should mirror the FULL finger object (including templateId/templateName)
   // ----------------------------
   if (mirrorOn && typeof applyMirrorHands === 'function') {
     try {
@@ -1448,7 +1537,9 @@ async function generateOneDesign({
   }
 
   // ----------------------------
-  // 10) normalize + enforce templateId
+  // 10) normalize
+  // NOTE: your normalizeNailDesign MUST preserve finger.templateId/templateName etc,
+  // otherwise those fields will get stripped.
   // ----------------------------
   nailDesign = normalizeNailDesign(nailDesign);
 
@@ -1463,7 +1554,8 @@ async function generateOneDesign({
     meta: {
       mode: 'single',
       model: norm(model) || 'couture',
-      serviceVersion: SERVICE_VERSION,
+      serviceVersion:
+        typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
       serviceFile: __filename,
       resolved: { shape, length },
       mirrorHands: mirrorOn,
@@ -1476,16 +1568,17 @@ async function generateOneDesign({
       chosenTemplateDocId: chosenTemplateDocId || null,
       finalTemplateId,
 
-      // ✅ NEW debug fields for the length relax feature
       relaxedLengthUsed: relaxedLengthUsed === true,
       chosenTemplateLength: chosenTemplateLength || null,
-      resolvedLengthOriginal: resolvedLength || null,
+      resolvedLengthOriginal: resolvedLengthOriginal || null,
 
-      chosenComplexity: complexity,
+      complexity: chosenComplexity, // ✅ keep here too
 
-      accentIndexes: Array.isArray(accentIndexes) ? accentIndexes : [],
-      accentCount: Array.isArray(accentIndexes) ? accentIndexes.length : 0,
-
+      // finger variety info (helps debugging)
+      uniqueTemplateTarget: wantUnique,
+      pickedTemplateIds: pickedTpls.map((t) => getDocId(t)).filter(Boolean),
+      accentIndexes: Array.from(accentSet),
+      accentCount: Array.from(accentSet).length,
       explicitFingerOverrides: overrideIndexes.length > 0,
       overrideIndexes,
 
@@ -1497,7 +1590,7 @@ async function generateOneDesign({
         charms: Array.isArray(charms) ? charms.length : 0,
       },
 
-      templatesCacheLen: Array.isArray(__TEMPLATES_CACHE) ? __TEMPLATES_CACHE.length : 0,
+      templatesCacheLen: Array.isArray(global.__TEMPLATES_CACHE) ? global.__TEMPLATES_CACHE.length : 0,
     },
   };
 }
@@ -2381,18 +2474,19 @@ async function generateVariants({
   shapeOverride,
   lengthOverride,
 
-  // model selector for scoring behavior: "iconic" | "couture" | "muse" | "curated" | null
   model = null,
 
-  templateId,          // Firestore doc id string
-  lockTemplate,        // boolean (optional). If omitted, templateId implies lock (back-compat).
+  templateId,
+  lockTemplate,
   mirrorHands,
   count = 5,
   seed = 123,
   debug = false,
 
-  // optional: force trending without changing model
-  preferTrending = null, // boolean | null
+  preferTrending = null,
+
+  // ✅ NEW
+  complexity = null,
 }) {
   console.log('generateVariants input templateId:', templateId);
 
@@ -2437,8 +2531,6 @@ async function generateVariants({
     modelKey === 'curated';
 
   // Back-compat lock behavior:
-  // Previously: templateId => lock
-  // Now: supports explicit lockTemplate.
   const lockFlag = coerceBool(lockTemplate);
   const requestedTemplateId = normStr(templateId);
   const lockedTemplateId =
@@ -2446,7 +2538,10 @@ async function generateVariants({
       ? requestedTemplateId
       : null;
 
-  // If prompt is empty, return safe meta
+  // ✅ complexity normalize
+  const cx = normLower(complexity || '');
+  const complexityNorm = ['low', 'medium', 'complex'].includes(cx) ? cx : null;
+
   if (!safePrompt) {
     return {
       prompt: safePrompt,
@@ -2462,6 +2557,7 @@ async function generateVariants({
         mirrorHands: mirrorHands === true,
         model: modelKey || null,
         preferTrending: preferTrendingFlag,
+        complexity: complexityNorm,
         lockTemplate: lockedTemplateId != null,
         lockedTemplateId: lockedTemplateId || null,
         candidateIdsLen: 0,
@@ -2484,7 +2580,6 @@ async function generateVariants({
   shape = normLower(shape) || 'square';
   length = normLower(length) || 'medium';
 
-  // Canonical helpers so "long" matches "_lg" etc.
   const canonShapeTokens = (s) => {
     const x = normLower(s);
     if (x === 'square') return ['square', 'sq'];
@@ -2531,22 +2626,19 @@ async function generateVariants({
     return a;
   };
 
-  // ---------- catalog extraction + debug helpers ----------
+  // ---------- catalog extraction ----------
   const extractPossibleIds = (tpl) => {
     const ids = [];
     if (!tpl) return ids;
-  
-    // ✅ Only include real ids, not human names/labels
+
     if (tpl.templateId) ids.push(String(tpl.templateId));
     if (tpl.id) ids.push(String(tpl.id));
-  
-    // If your fingerDesign stores a real template id, allow it (but NOT templateName)
+
     const fd = safeParseJson(tpl.fingerDesign);
     if (fd?.templateId) ids.push(String(fd.templateId));
-  
+
     return ids.map((x) => x.trim()).filter(Boolean);
   };
-  
 
   const buildLookup = (templates) => {
     const map = new Map();
@@ -2577,21 +2669,9 @@ async function generateVariants({
     };
   };
 
-  // ---------- load catalogs (templates are required; others optional) ----------
+  // ---------- load templates ----------
   let templates = [];
   let fallbackSource = null;
-
-  // optional catalogs used by swaps (not required for variants selection)
-  let colorLibrary = [];
-  let frenchTips = [];
-  let patterns = [];
-  let charms = [];
-  let stamps = [];
-  let stickers = [];
-  let gelArt3D = [];
-  let effects = [];
-
-  try { colorLibrary = getCollection('color_library') || []; } catch (e) {}
 
   try {
     templates = getCollection('finger_templates') || [];
@@ -2606,24 +2686,10 @@ async function generateVariants({
     }
   }
 
-  // cache templates for other helpers if you use that elsewhere
-  if (typeof __TEMPLATES_CACHE !== 'undefined') {
-    __TEMPLATES_CACHE = Array.isArray(templates) ? templates : [];
-  } else {
-    // if you don’t have this global, don’t crash
-    try { global.__TEMPLATES_CACHE = Array.isArray(templates) ? templates : []; } catch (_) {}
-  }
+  // cache templates if you have this global
+  try { global.__TEMPLATES_CACHE = Array.isArray(templates) ? templates : []; } catch (_) {}
 
-  // optional catalogs (safe; applySwaps can ignore missing)
-  try { frenchTips = getCollection('french_tips') || getCollection('french_tip') || []; } catch (e) {}
-  try { patterns = getCollection('pattern_library') || getCollection('patterns') || []; } catch (e) {}
-  try { charms = getCollection('charm_library') || getCollection('charms') || []; } catch (e) {}
-  try { stamps = getCollection('stamp_library') || getCollection('stamps') || []; } catch (e) {}
-  try { stickers = getCollection('sticker_library') || getCollection('stickers') || []; } catch (e) {}
-  try { gelArt3D = getCollection('gel_art_3d') || getCollection('gelArt3D') || []; } catch (e) {}
-  try { effects = getCollection('effects') || []; } catch (e) {}
-
-  // ---------- 1) candidate scoring (or lock) ----------
+  // ---------- 1) candidates ----------
   let candidates = [];
 
   if (lockedTemplateId) {
@@ -2665,27 +2731,22 @@ async function generateVariants({
   // ---------- 2) fallback if matcher returned nothing ----------
   if (!lockedTemplateId && candidateIds.length === 0) {
     const allIds = unique(
-  (Array.isArray(catalog) ? catalog : []).flatMap((tpl) => extractPossibleIds(tpl))
-);
+      (Array.isArray(templates) ? templates : []).flatMap((tpl) => extractPossibleIds(tpl))
+    );
 
-const shapeFiltered = allIds.filter((id) => {
-  // match only shape token (ignore length)
-  const idn = `_${String(id || '').trim().toLowerCase()}_`;
-  return canonShapeTokens(shape).some((tok) => idn.includes(`_${tok}_`));
-});
+    const shapeFiltered = allIds.filter((id) => {
+      const idn = `_${String(id || '').trim().toLowerCase()}_`;
+      return canonShapeTokens(shape).some((tok) => idn.includes(`_${tok}_`));
+    });
 
-const shapeAndLengthFiltered = shapeFiltered.filter((id) =>
-  idMatchesShapeLength(id, shape, length)
-);
+    const shapeAndLengthFiltered = shapeFiltered.filter((id) =>
+      idMatchesShapeLength(id, shape, length)
+    );
 
-// Priority:
-// 1) shape+length
-// 2) shape only
-// 3) anything
-candidateIds =
-  shapeAndLengthFiltered.length ? shapeAndLengthFiltered :
-  shapeFiltered.length ? shapeFiltered :
-  allIds;
+    candidateIds =
+      shapeAndLengthFiltered.length ? shapeAndLengthFiltered :
+      shapeFiltered.length ? shapeFiltered :
+      allIds;
   }
 
   // ---------- 3) variety: pick from top K using seed ----------
@@ -2696,9 +2757,8 @@ candidateIds =
     candidateIds = [pickedId, ...candidateIds.filter((x) => x !== pickedId)];
   }
 
-  // ---------- 4) determine chosen ids ----------
+  // ---------- 4) chosen ids per variant ----------
   let chosenIds = [];
-
   if (lockedTemplateId) {
     chosenIds = Array.from({ length: n }, () => lockedTemplateId);
   } else {
@@ -2724,7 +2784,6 @@ candidateIds =
     chosenIds,
     fallbackSource,
     debug: debug === true,
-    topId: (!lockedTemplateId && candidates[0]?.id) || null,
   });
 
   // ---------- 5) generate designs ----------
@@ -2739,26 +2798,12 @@ candidateIds =
       templateId: chosenIds[i],
       mirrorHands,
 
-      // ✅ pass model + seed down so downstream logic can use it
       model: modelKey || null,
       seed: seedNum,
-
       debug: debug === true,
-
-      // ✅ optional: pass catalogs so generateOneDesign/applySwaps can use them
-      catalogs: {
-        frenchTips,
-        patterns,
-        charms,
-        stamps,
-        stickers,
-        gelArt3D,
-        effects,
-        colorLibrary,
-      },
-
-      // ✅ optional: let curated/muse prefer trending when swapping
       preferTrending: preferTrendingFlag,
+
+      complexity: complexityNorm, // ✅ PASS THROUGH
     });
 
     if (!firstResolved && one?.meta?.resolved) firstResolved = one.meta.resolved;
@@ -2773,7 +2818,7 @@ candidateIds =
     ...variants.map((v) => v?.templateId || null),
   ];
 
-  // ---------- 6) optional debug block ----------
+  // ---------- 6) optional debug ----------
   let debugBlock = null;
   if (debug === true) {
     const lookup = buildLookup(Array.isArray(templates) ? templates : []);
@@ -2801,6 +2846,9 @@ candidateIds =
       model: modelKey || null,
       preferTrending: preferTrendingFlag,
 
+      // ✅ keep complexity visible at the batch level
+      complexity: complexityNorm,
+
       lockTemplate: lockedTemplateId != null,
       lockedTemplateId: lockedTemplateId || null,
 
@@ -2819,6 +2867,8 @@ candidateIds =
     },
   };
 }
+
+
 
 
 function tokenizePrompt(promptLower) {
@@ -3000,6 +3050,32 @@ exports.generateDesign = async ({
   };
 };
 
+// In nailAssistantService.js
+const crypto = require('crypto');
+
+const genId = () =>
+  (typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`);
+
+const nowIso = () => new Date().toISOString();
+
+const ALLOWED_COMPLEXITY = new Set(['low', 'medium', 'complex']);
+function normalizeComplexity(v) {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (!s || ['auto', 'any', 'default', 'detect', 'none', 'null'].includes(s)) return null;
+  return ALLOWED_COMPLEXITY.has(s) ? s : null;
+}
+
+function inferComplexityFromModel(model) {
+  const m = String(model || '').trim().toLowerCase();
+  if (m === 'couture') return 'complex';
+  if (m === 'iconic') return 'medium';
+  if (m === 'muse' || m === 'curated') return 'medium';
+  return 'medium';
+}
+
 async function generateDesign(input = {}) {
   const body =
     input && typeof input === 'object' && !Array.isArray(input) ? input : {};
@@ -3019,12 +3095,17 @@ async function generateDesign(input = {}) {
 
   const lockTemplate = body.lockTemplate === true;
 
+  // ✅ complexity (low|medium|complex) — allow null/"auto"
+  const complexityRaw = body.complexity ?? null;
+  const complexity = String(complexityRaw ?? '').trim().toLowerCase();
+  const complexityNorm = ['low', 'medium', 'complex'].includes(complexity)
+    ? complexity
+    : null;
+
   // sensible defaults
   const countRaw = body.count ?? body.n ?? 5;
 
-  // ✅ IMPORTANT:
-  // - if caller didn't provide a seed, default to Date.now() so UX varies
-  // - if caller DID provide one, keep it for repeatable debugging
+  // if caller didn't provide seed, default to Date.now() so UX varies
   const seedRaw = body.seed ?? Date.now();
 
   const count = Math.max(
@@ -3044,6 +3125,9 @@ async function generateDesign(input = {}) {
           typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
         serviceFile: __filename,
         seed: isVariants ? seed : null,
+        mirrorHands,
+        model: body.model ?? null,
+        complexity: complexityNorm,
       },
       error: 'Prompt is required',
     };
@@ -3071,8 +3155,11 @@ async function generateDesign(input = {}) {
       mirrorHands,
       count,
       seed,
-      lockTemplate, // fine if your generateVariants ignores it
-      llm: llm?.json ?? null, // fine if ignored
+      lockTemplate,
+      complexity: complexityNorm, // ✅ pass through
+      llm: llm?.json ?? null,     // safe if ignored
+      debug: body.debug === true,
+      preferTrending: body.preferTrending ?? null,
     });
 
     // attach OpenAI info to meta (non-breaking)
@@ -3080,6 +3167,8 @@ async function generateDesign(input = {}) {
       result.meta.openai = llm
         ? { ok: !!llm.ok, model: llm.model || null, data: llm.json || null }
         : { ok: false, model: null, data: null };
+
+      if (complexityNorm) result.meta.complexity = complexityNorm;
     }
     return result;
   }
@@ -3091,7 +3180,12 @@ async function generateDesign(input = {}) {
     lengthOverride,
     templateId: templateId || null,
     mirrorHands,
-    llm: llm?.json ?? null, // fine if ignored
+    complexity: complexityNorm, // ✅ pass through
+    llm: llm?.json ?? null,     // safe if ignored
+    model: body.model ?? null,
+    seed,
+    debug: body.debug === true,
+    preferTrending: body.preferTrending ?? null,
   });
 
   // attach OpenAI info to meta (non-breaking)
@@ -3099,10 +3193,16 @@ async function generateDesign(input = {}) {
     one.meta.openai = llm
       ? { ok: !!llm.ok, model: llm.model || null, data: llm.json || null }
       : { ok: false, model: null, data: null };
+
+    if (complexityNorm) one.meta.complexity = complexityNorm;
   }
 
   return one;
 }
+
+
+module.exports.generateDesign = generateDesign;
+
 
 module.exports = { generateDesign };
 

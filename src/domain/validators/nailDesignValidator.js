@@ -2,7 +2,12 @@
 const Ajv = require('ajv');
 const nailDesignSchema = require('./nailDesignSchema');
 
-const ajv = new Ajv({ allErrors: true, strict: false });
+const ajv = new Ajv({
+  allErrors: true,
+  strict: false,
+  coerceTypes: true, // optional but nice during iteration
+});
+
 const validateFn = ajv.compile(nailDesignSchema);
 
 function validateNailDesign(nailDesign) {
@@ -13,7 +18,6 @@ function validateNailDesign(nailDesign) {
       errors: validateFn.errors || [],
     };
   }
-
   return { valid: true, errors: [] };
 }
 
