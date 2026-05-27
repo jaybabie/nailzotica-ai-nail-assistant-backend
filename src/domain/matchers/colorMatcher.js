@@ -9,6 +9,14 @@
  * - family or colorFamily
  * - tags: [] if present
  */
+function safeLower(value) {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v || '').toLowerCase()).join(' ');
+  }
+
+  return String(value || '').toLowerCase();
+}
+
 function matchBaseColor(prompt, colorDocs) {
   if (!Array.isArray(colorDocs) || colorDocs.length === 0) {
     return null;
@@ -42,7 +50,7 @@ function matchBaseColor(prompt, colorDocs) {
 
   for (const doc of colorDocs) {
     const name = (doc.colorName || doc.name || '').toLowerCase();
-    const family = (doc.colorFamily || doc.family || '').toLowerCase();
+    const family = safeLower(doc.colorFamily || doc.family);
     const tags = Array.isArray(doc.tags)
       ? doc.tags.map((t) => String(t).toLowerCase())
       : [];
@@ -81,13 +89,20 @@ function buildBaseFromColorDoc(colorDoc) {
     // fallback Hot Pink (same as before)
     return {
       type: 'solid',
-      colorName: 'Hot Pink',
-      colorFamily: 'pink',
-      colorRef: 'color_hot_pink',
-      finish: 'glossy',
-      opacity: 1,
-      hexColor: '#FF69B4',
-      gradient: null,
+      colorName,
+      colorFamily,
+      colorRef,
+      finish,
+      opacity: typeof colorDoc.opacity === 'number' ? colorDoc.opacity : 1,
+      hexColor,
+      hexCode: colorDoc.hexCode || colorDoc.hex || colorDoc.hex_code || hexColor,
+
+      uiTextureUrl: colorDoc.uiTextureUrl || '',
+      canvasUiUrl: colorDoc.canvasUiUrl || colorDoc.uiTextureUrl || '',
+      builderUiImage: colorDoc.builderUiImage || colorDoc.uiTextureUrl || '',
+      uiImageUrl: colorDoc.uiImageUrl || colorDoc.uiTextureUrl || '',
+
+      gradient: colorDoc.gradient || null,
       visible: true,
     };
   }

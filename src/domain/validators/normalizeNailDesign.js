@@ -23,14 +23,22 @@ function deepClone(obj) {
 
 function normalizeBase(base) {
   const b = base && typeof base === 'object' ? base : {};
+
   return {
+    ...b,
     type: b.type ?? 'solid',
     colorName: b.colorName ?? null,
     colorFamily: b.colorFamily ?? null,
     colorRef: b.colorRef ?? null,
     finish: b.finish ?? 'glossy',
     opacity: typeof b.opacity === 'number' ? b.opacity : 1,
-    hexColor: b.hexColor ?? null,
+    hexColor: b.hexColor ?? b.hexCode ?? null,
+    hexCode: b.hexCode ?? b.hexColor ?? null,
+    polishCode: b.polishCode ?? null,
+    uiTextureUrl: b.uiTextureUrl ?? '',
+    canvasUiUrl: b.canvasUiUrl ?? '',
+    builderUiImage: b.builderUiImage ?? '',
+    uiImageUrl: b.uiImageUrl ?? '',
     gradient: b.gradient ?? null,
     visible: typeof b.visible === 'boolean' ? b.visible : true,
   };

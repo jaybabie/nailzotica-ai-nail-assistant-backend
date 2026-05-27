@@ -4,7 +4,7 @@ console.log('✅ RUNNING nailAssistantService.js from:', __filename);
 const { runNailAssistantLLM } = require('./openaiClient');
 
 const { normalizeNailDesign } = require('../domain/validators/normalizeNailDesign');
-const { getCollection } = require('../data/mockFirestore');
+const { getCollection } = require('../config/firestore');
 
 const {
   matchBaseColor,
@@ -1165,55 +1165,67 @@ async function generateOneDesign({
   // ----------------------------
   // 2) Load collections
   // ----------------------------
-  const safeGet = (name) => {
+  const safeGet = async (name) => {
     try {
-      const v = getCollection(name);
+      const v = await getCollection(name);
       return Array.isArray(v) ? v : [];
     } catch (e) {
       return [];
     }
   };
 
-  const colorLibrary = safeGet('color_library');
+  const colorLibrary = await safeGet('color_library');
 
-  let templates = safeGet('finger_templates');
-  if (!templates.length) templates = safeGet('templates');
+  let templates = await safeGet('finger_templates');
+  if (!templates.length) {
+    templates = await safeGet('templates');
+  }
 
   const normalizedTemplates =
-    (typeof getTemplatesCatalog === 'function')
+    typeof getTemplatesCatalog === 'function'
       ? getTemplatesCatalog(templates)
       : (Array.isArray(templates) ? templates : []);
 
-  try { global.__TEMPLATES_CACHE = Array.isArray(normalizedTemplates) ? normalizedTemplates : []; } catch (_) {}
+  try {
+    global.__TEMPLATES_CACHE = Array.isArray(normalizedTemplates)
+      ? normalizedTemplates
+      : [];
+  } catch (_) {}
 
-  const frenchTips = (() => {
-    const a = safeGet('french_tips');
-    return a.length ? a : safeGet('french_tip');
-  })();
-  const patterns = (() => {
-    const a = safeGet('pattern_library');
-    return a.length ? a : safeGet('patterns');
-  })();
-  const charms = (() => {
-    const a = safeGet('charm_library');
-    return a.length ? a : safeGet('charms');
-  })();
-  const stamps = (() => {
-    const a = safeGet('stamp_library');
-    return a.length ? a : safeGet('stamps');
-  })();
-  const stickers = (() => {
-    const a = safeGet('sticker_library');
-    return a.length ? a : safeGet('stickers');
-  })();
-  const gelArt3D = (() => {
-    const a = safeGet('gel_art_3d');
-    return a.length ? a : safeGet('gelArt3D');
-  })();
-  const effects = (() => {
-    const a = safeGet('effect_library');
-    return a.length ? a : safeGet('effects');
-  })();
+  let frenchTips = await safeGet('french_tips');
+  if (!frenchTips.length) {
+    frenchTips = await safeGet('french_tip');
+  }
+
+  let patterns = await safeGet('pattern_library');
+  if (!patterns.length) {
+    patterns = await safeGet('patterns');
+  }
+
+  let charms = await safeGet('charm_library');
+  if (!charms.length) {
+    charms = await safeGet('charms');
+  }
+
+  let stamps = await safeGet('stamp_library');
+  if (!stamps.length) {
+    stamps = await safeGet('stamps');
+  }
+
+  let stickers = await safeGet('sticker_library');
+  if (!stickers.length) {
+    stickers = await safeGet('stickers');
+  }
+
+  let gelArt3D = await safeGet('gel_art_3d');
+  if (!gelArt3D.length) {
+    gelArt3D = await safeGet('gelArt3D');
+  }
+
+  let effects = await safeGet('effect_library');
+  if (!effects.length) {
+    effects = await safeGet('effects');
+  }
 
   // ----------------------------
   // 3) Base color
@@ -1999,7 +2011,7 @@ async function __getPool(collectionName) {
   let pool = [];
   try {
     if (typeof getCollection === 'function') {
-      pool = getCollection(collectionName) || [];
+      pool = await getCollection(collectionName) || [];
     } else if (typeof getCatalog === 'function') {
       // optional fallback if you have a generic catalog fn
       pool = getCatalog(collectionName) || [];
