@@ -5,11 +5,12 @@ const { runNailAssistantLLM } = require('./openaiClient');
 
 const { normalizeNailDesign } = require('../domain/validators/normalizeNailDesign');
 const { getCollection } = require('../config/firestore');
+const { applyPromptOverridesToDesign } = require('./domain/matchers/designOverrideMatcher');
 
 const {
   matchBaseColor,
   buildBaseFromColorDoc,
-} = require('../domain/matchers/colorMatcher');
+} = require('./domain/matchers/colorMatcher');
 
 
 const SERVICE_VERSION = 'v1001_combined_variants_mirror_2025-12-14';
@@ -719,7 +720,6 @@ function getTopTemplateCandidates(promptOrObj, shapeOverride, lengthOverride, ll
 
   return scored.slice(0, 20);
 }
-
 
 function getTemplatesCatalog(rawInput) {
   // ---------- helpers ----------
@@ -1548,6 +1548,23 @@ async function generateOneDesign({
     }
   }
 
+  try {
+    nailDesign = applyPromptOverridesToDesign({
+      design: nailDesign,
+      prompt: safePrompt,
+      colorLibrary,
+      charms,
+      frenchTips,
+      patterns,
+      stamps,
+      gelArt3D,
+      stickers,
+      variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
+    });
+  } catch (e) {
+    console.warn('⚠️ applyPromptOverridesToDesign failed:', e?.message || e);
+  }
+
   // ----------------------------
   // 10) normalize
   // NOTE: your normalizeNailDesign MUST preserve finger.templateId/templateName etc,
@@ -1606,8 +1623,6 @@ async function generateOneDesign({
     },
   };
 }
-
-
 
 function normStr(v) {
   return String(v ?? '').trim().toLowerCase();
@@ -2480,7 +2495,6 @@ async function applySwaps(fingerDesign, a = {}, b = {}, c = {}, d = {}) {
   }
 }
 
-
 async function generateVariants({
   prompt,
   shapeOverride,
@@ -2533,7 +2547,7 @@ async function generateVariants({
   const safePrompt = normStr(prompt);
   const promptLower = safePrompt.toLowerCase();
 
-  const n = Math.max(2, Math.floor(toNum(count, 5) || 5));
+  const n = Math.max(1, Math.floor(toNum(count, 1) || 1));
   const seedNum = toNum(seed, 123);
 
   const modelKey = normLower(model || '');
@@ -2779,8 +2793,13 @@ async function generateVariants({
     const restShuffled = rest.length ? shuffleDeterministic(rest) : [];
 
     chosenIds.push(firstId);
+
     for (let i = 1; i < n; i++) {
-      chosenIds.push(restShuffled.length ? restShuffled[(i - 1) % restShuffled.length] : firstId);
+      if (restShuffled.length) {
+        chosenIds.push(restShuffled[(i - 1) % restShuffled.length]);
+      } else {
+        chosenIds.push(firstId);
+      }
     }
   }
 
@@ -2811,7 +2830,7 @@ async function generateVariants({
       mirrorHands,
 
       model: modelKey || null,
-      seed: seedNum,
+      seed: seedNum + i,
       debug: debug === true,
       preferTrending: preferTrendingFlag,
 
@@ -2879,9 +2898,6 @@ async function generateVariants({
     },
   };
 }
-
-
-
 
 function tokenizePrompt(promptLower) {
   return new Set(
@@ -3086,6 +3102,176 @@ function inferComplexityFromModel(model) {
   if (m === 'iconic') return 'medium';
   if (m === 'muse' || m === 'curated') return 'medium';
   return 'medium';
+}
+
+function applyPromptOverridesToDesign({
+  design,
+  prompt,
+  colorLibrary = [],
+  charms = [],
+  frenchTips = [],
+  patterns = [],
+  stamps = [],
+  gelArt3D = [],
+  stickers = [],
+  variantIndex = 0,
+}) {
+  if (!design || !design.fingers) return design;
+
+  const {
+    matchBaseColor,
+    buildBaseFromColorDoc,
+  } = require('./domain/matchers/colorMatcher');
+
+  const {
+    applyPromptFrenchTipToFinger,
+  } = require('./domain/matchers/frenchTipMatcher');
+
+  const {
+    pickMatchingPattern,
+    buildPatternLayerFromDoc,
+  } = require('./domain/matchers/patternMatcher');
+
+  const {
+    decidePatternPlacement,
+    applyPatternPlacement,
+  } = require('./domain/matchers/patternPlacementMatcher');
+
+  const {
+    applyPromptStampToFinger,
+  } = require('./domain/matchers/stampMatcher');
+
+  const {
+    applyPromptCharmToFinger,
+  } = require('./domain/matchers/charmMatcher');
+
+  const {
+    applyPromptGelArtToFinger,
+  } = require('./domain/matchers/gelArtMatcher');
+
+  const {
+    applyPromptStickerToFinger,
+  } = require('./domain/matchers/stickerMatcher');
+
+  const promptLower = String(prompt || '').toLowerCase();
+
+  const matchedColor = matchBaseColor(promptLower, colorLibrary);
+
+  const applyColorToFrenchTips = (finger, colorDoc) => {
+    if (!finger || !colorDoc) return finger;
+
+    const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
+
+    return {
+      ...finger,
+      layers: layers.map((layer) => {
+        if (layer?.type !== 'french_tip') return layer;
+
+        return {
+          ...layer,
+          base: buildBaseFromColorDoc(colorDoc),
+        };
+      }),
+    };
+  };
+
+  const applyPatternToBestPlacement = (finger) => {
+    const matchedPattern = pickMatchingPattern({
+      prompt: promptLower,
+      patterns,
+      variantIndex,
+    });
+
+    if (!matchedPattern) return finger;
+
+    const patternLayer = buildPatternLayerFromDoc({
+      pattern: matchedPattern,
+      variantIndex,
+    });
+
+    const placement = decidePatternPlacement(promptLower);
+
+    return applyPatternPlacement({
+      finger,
+      patternLayer,
+      placement,
+    });
+  };
+
+  const nextDesign = {
+    ...design,
+    fingers: { ...design.fingers },
+  };
+
+  for (const fingerKey of Object.keys(nextDesign.fingers)) {
+    let finger = nextDesign.fingers[fingerKey];
+    if (!finger) continue;
+
+    finger = applyPromptFrenchTipToFinger({
+      finger,
+      prompt: promptLower,
+      frenchTips,
+      shape: finger.shape || design.shape,
+      length: finger.length || design.length,
+      variantIndex,
+    });
+
+    if (matchedColor) {
+      const wantsFrenchColor =
+        promptLower.includes('french') ||
+        promptLower.includes('tip') ||
+        promptLower.includes('v-cut') ||
+        promptLower.includes('v cut') ||
+        promptLower.includes('chevron');
+
+      if (wantsFrenchColor) {
+        finger = applyColorToFrenchTips(finger, matchedColor);
+      } else {
+        finger = {
+          ...finger,
+          base: buildBaseFromColorDoc(matchedColor),
+        };
+      }
+    }
+
+    finger = applyPatternToBestPlacement(finger);
+
+    finger = applyPromptStampToFinger({
+      finger,
+      prompt: promptLower,
+      stamps,
+      variantIndex,
+    });
+
+    finger = applyPromptCharmToFinger({
+      finger,
+      prompt: promptLower,
+      charms,
+      fingerKey,
+      variantIndex,
+    });
+
+    finger = applyPromptGelArtToFinger({
+      finger,
+      prompt: promptLower,
+      gelArt3D,
+      fingerKey,
+      shape: finger.shape || design.shape,
+      length: finger.length || design.length,
+      variantIndex,
+    });
+
+    finger = applyPromptStickerToFinger({
+      finger,
+      prompt: promptLower,
+      stickers,
+      variantIndex,
+    });
+
+    nextDesign.fingers[fingerKey] = finger;
+  }
+
+  return nextDesign;
 }
 
 async function generateDesign(input = {}) {

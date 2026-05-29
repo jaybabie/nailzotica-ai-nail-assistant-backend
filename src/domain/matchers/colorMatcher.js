@@ -24,6 +24,11 @@ function matchBaseColor(prompt, colorDocs) {
 
   const lower = (prompt || '').toLowerCase();
 
+  const wantsGlitter = lower.includes('glitter') || lower.includes('sparkle');
+  const wantsChrome = lower.includes('chrome');
+  const wantsMatte = lower.includes('matte');
+  const wantsGlossy = lower.includes('glossy') || lower.includes('gloss');
+
   // crude color keywords – we can expand this later
   const wantedKeywords = [];
   if (lower.includes('hot pink')) wantedKeywords.push('hot pink');
@@ -54,6 +59,14 @@ function matchBaseColor(prompt, colorDocs) {
     const tags = Array.isArray(doc.tags)
       ? doc.tags.map((t) => String(t).toLowerCase())
       : [];
+
+    const finish = safeLower(doc.finish || doc.polishCode);
+    const haystack = `${name} ${family} ${tags.join(' ')} ${finish}`;
+
+    if (wantsGlitter && haystack.includes('glitter')) score += 8;
+    if (wantsChrome && haystack.includes('chrome')) score += 8;
+    if (wantsMatte && haystack.includes('matte')) score += 8;
+    if (wantsGlossy && haystack.includes('gloss')) score += 6;
 
     let score = 0;
 
@@ -86,41 +99,40 @@ function matchBaseColor(prompt, colorDocs) {
  */
 function buildBaseFromColorDoc(colorDoc) {
   if (!colorDoc) {
-    // fallback Hot Pink (same as before)
     return {
       type: 'solid',
-      colorName,
-      colorFamily,
-      colorRef,
-      finish,
-      opacity: typeof colorDoc.opacity === 'number' ? colorDoc.opacity : 1,
-      hexColor,
-      hexCode: colorDoc.hexCode || colorDoc.hex || colorDoc.hex_code || hexColor,
-
-      uiTextureUrl: colorDoc.uiTextureUrl || '',
-      canvasUiUrl: colorDoc.canvasUiUrl || colorDoc.uiTextureUrl || '',
-      builderUiImage: colorDoc.builderUiImage || colorDoc.uiTextureUrl || '',
-      uiImageUrl: colorDoc.uiImageUrl || colorDoc.uiTextureUrl || '',
-
-      gradient: colorDoc.gradient || null,
+      colorName: 'Soft Nude',
+      colorFamily: ['nude'],
+      colorRef: null,
+      finish: 'glossy',
+      opacity: 1,
+      hexColor: '#E8C7B8',
+      hexCode: '#E8C7B8',
+      uiTextureUrl: '',
+      canvasUiUrl: '',
+      builderUiImage: '',
+      uiImageUrl: '',
+      gradient: null,
       visible: true,
     };
   }
 
   const colorName = colorDoc.colorName || colorDoc.name || 'Unnamed Color';
-  const colorFamily = colorDoc.colorFamily || colorDoc.family || '';
+  const colorFamily = colorDoc.colorFamily || colorDoc.family || [];
   const colorRef =
     colorDoc.colorRef ||
     colorDoc.id ||
     colorDoc.docId ||
     colorName.toLowerCase().replace(/\s+/g, '_');
+
   const hexColor =
     colorDoc.hexColor ||
     colorDoc.hex ||
     colorDoc.hex_code ||
     colorDoc.hexCode ||
     '#FF69B4';
-  const finish = colorDoc.finish || 'glossy';
+
+  const finish = colorDoc.finish || colorDoc.polishCode || 'glossy';
 
   return {
     type: 'solid',
@@ -128,9 +140,15 @@ function buildBaseFromColorDoc(colorDoc) {
     colorFamily,
     colorRef,
     finish,
-    opacity: 1,
+    opacity: typeof colorDoc.opacity === 'number' ? colorDoc.opacity : 1,
     hexColor,
-    gradient: null,
+    hexCode: colorDoc.hexCode || colorDoc.hex || colorDoc.hex_code || hexColor,
+    polishCode: colorDoc.polishCode || finish,
+    uiTextureUrl: colorDoc.uiTextureUrl || colorDoc.builderUiImage || colorDoc.uiImageUrl || '',
+    canvasUiUrl: colorDoc.canvasUiUrl || colorDoc.uiTextureUrl || colorDoc.builderUiImage || colorDoc.uiImageUrl || '',
+    builderUiImage: colorDoc.builderUiImage || colorDoc.uiTextureUrl || colorDoc.uiImageUrl || '',
+    uiImageUrl: colorDoc.uiImageUrl || colorDoc.builderUiImage || colorDoc.uiTextureUrl || '',
+    gradient: colorDoc.gradient || null,
     visible: true,
   };
 }
