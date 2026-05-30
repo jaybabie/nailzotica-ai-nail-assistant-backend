@@ -29,7 +29,6 @@ function matchBaseColor(prompt, colorDocs) {
   const wantsMatte = lower.includes('matte');
   const wantsGlossy = lower.includes('glossy') || lower.includes('gloss');
 
-  // crude color keywords – we can expand this later
   const wantedKeywords = [];
   if (lower.includes('hot pink')) wantedKeywords.push('hot pink');
   if (lower.includes('pink')) wantedKeywords.push('pink');
@@ -46,7 +45,6 @@ function matchBaseColor(prompt, colorDocs) {
   if (lower.includes('silver')) wantedKeywords.push('silver');
 
   if (wantedKeywords.length === 0) {
-    // nothing color-ish in the prompt – just let the caller use a default
     return null;
   }
 
@@ -63,19 +61,29 @@ function matchBaseColor(prompt, colorDocs) {
     const finish = safeLower(doc.finish || doc.polishCode);
     const haystack = `${name} ${family} ${tags.join(' ')} ${finish}`;
 
+    let score = 0;
+
     if (wantsGlitter && haystack.includes('glitter')) score += 8;
     if (wantsChrome && haystack.includes('chrome')) score += 8;
     if (wantsMatte && haystack.includes('matte')) score += 8;
     if (wantsGlossy && haystack.includes('gloss')) score += 6;
 
     for (const kw of wantedKeywords) {
-      if (kw === 'hot pink') {
-        if (name.includes('hot pink')) score += 6;
-      }
+      if (kw === 'hot pink' && name.includes('hot pink')) score += 6;
 
       if (name.includes(kw)) score += 4;
       if (family.includes(kw)) score += 3;
       if (tags.some((t) => t.includes(kw))) score += 2;
+      if (finish.includes(kw)) score += 2;
+    }
+
+    // Extra combo boosts
+    if (lower.includes('silver glitter') && haystack.includes('silver') && haystack.includes('glitter')) {
+      score += 15;
+    }
+
+    if (lower.includes('gold glitter') && haystack.includes('gold') && haystack.includes('glitter')) {
+      score += 15;
     }
 
     if (score > bestScore) {
