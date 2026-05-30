@@ -68,8 +68,6 @@ function matchBaseColor(prompt, colorDocs) {
     if (wantsMatte && haystack.includes('matte')) score += 8;
     if (wantsGlossy && haystack.includes('gloss')) score += 6;
 
-    let score = 0;
-
     for (const kw of wantedKeywords) {
       if (kw === 'hot pink') {
         if (name.includes('hot pink')) score += 6;
