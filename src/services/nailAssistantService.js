@@ -5,7 +5,7 @@ const { runNailAssistantLLM } = require('./openaiClient');
 
 const { normalizeNailDesign } = require('../domain/validators/normalizeNailDesign');
 const { getCollection } = require('../config/firestore');
-const { applyPromptOverridesToDesign } = require('./domain/matchers/designOverrideMatcher');
+const { applyPromptOverridesToDesign } = require('../domain/matchers/designOverrideMatcher');
 
 const {
   matchBaseColor,
