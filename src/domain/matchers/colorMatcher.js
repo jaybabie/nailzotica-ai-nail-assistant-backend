@@ -90,6 +90,21 @@ function matchBaseColor(prompt, colorDocs) {
     return null;
   }
 
+  console.log('🎨 matchBaseColor result:', {
+    prompt: lower,
+    wantedKeywords,
+    bestScore,
+    bestDoc: bestDoc
+      ? {
+          id: bestDoc.id || bestDoc.docId || bestDoc.colorRef || null,
+          name: bestDoc.colorName || bestDoc.name || null,
+          finish: bestDoc.finish || bestDoc.polishCode || null,
+          tags: bestDoc.tags || [],
+          family: bestDoc.colorFamily || bestDoc.family || null,
+        }
+      : null,
+  });
+
   return bestDoc;
 }
 

@@ -1549,6 +1549,17 @@ async function generateOneDesign({
   }
 
   try {
+
+    console.log('🧪 BEFORE OVERRIDES', {
+      prompt: safePrompt,
+      colorLibraryLen: Array.isArray(colorLibrary) ? colorLibrary.length : 0,
+      frenchTipsLen: Array.isArray(frenchTips) ? frenchTips.length : 0,
+      charmsLen: Array.isArray(charms) ? charms.length : 0,
+      patternsLen: Array.isArray(patterns) ? patterns.length : 0,
+      stampsLen: Array.isArray(stamps) ? stamps.length : 0,
+      gelArt3DLen: Array.isArray(gelArt3D) ? gelArt3D.length : 0,
+    });
+
     nailDesign = applyPromptOverridesToDesign({
       design: nailDesign,
       prompt: safePrompt,
