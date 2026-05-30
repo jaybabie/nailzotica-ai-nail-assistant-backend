@@ -10,7 +10,7 @@ const { applyPromptOverridesToDesign } = require('../domain/matchers/designOverr
 const {
   matchBaseColor,
   buildBaseFromColorDoc,
-} = require('./domain/matchers/colorMatcher');
+} = require('../domain/matchers/colorMatcher');
 
 
 const SERVICE_VERSION = 'v1001_combined_variants_mirror_2025-12-14';
