@@ -1548,18 +1548,9 @@ async function generateOneDesign({
     }
   }
 
+  nailDesign = normalizeNailDesign(nailDesign);
+
   try {
-
-    console.log('🧪 BEFORE OVERRIDES', {
-      prompt: safePrompt,
-      colorLibraryLen: Array.isArray(colorLibrary) ? colorLibrary.length : 0,
-      frenchTipsLen: Array.isArray(frenchTips) ? frenchTips.length : 0,
-      charmsLen: Array.isArray(charms) ? charms.length : 0,
-      patternsLen: Array.isArray(patterns) ? patterns.length : 0,
-      stampsLen: Array.isArray(stamps) ? stamps.length : 0,
-      gelArt3DLen: Array.isArray(gelArt3D) ? gelArt3D.length : 0,
-    });
-
     nailDesign = applyPromptOverridesToDesign({
       design: nailDesign,
       prompt: safePrompt,
@@ -1572,6 +1563,15 @@ async function generateOneDesign({
       stickers,
       variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
     });
+
+    console.log('🧪 AFTER OVERRIDES SAMPLE', {
+      shape: nailDesign?.shape,
+      length: nailDesign?.length,
+      fingersIsArray: Array.isArray(nailDesign?.fingers),
+      firstFingerBase: nailDesign?.fingers?.[0]?.base,
+      firstFingerLayers: nailDesign?.fingers?.[0]?.layers,
+      firstFingerCharms: nailDesign?.fingers?.[0]?.charms,
+    });
   } catch (e) {
     console.warn('⚠️ applyPromptOverridesToDesign failed:', e?.message || e);
   }
@@ -1581,7 +1581,6 @@ async function generateOneDesign({
   // NOTE: your normalizeNailDesign MUST preserve finger.templateId/templateName etc,
   // otherwise those fields will get stripped.
   // ----------------------------
-  nailDesign = normalizeNailDesign(nailDesign);
 
   try {
     nailDesign.templateId = finalTemplateId;
@@ -2767,9 +2766,7 @@ async function generateVariants({
 
   // ---------- 2) fallback if matcher returned nothing ----------
   if (!lockedTemplateId && candidateIds.length === 0) {
-    const allIds = unique(
-      (Array.isArray(templates) ? templates : []).flatMap((tpl) => extractPossibleIds(tpl))
-    );
+    const allIds = unique(templateIdsFromDocs);
 
     const shapeFiltered = allIds.filter((id) => {
       const idn = `_${String(id || '').trim().toLowerCase()}_`;
