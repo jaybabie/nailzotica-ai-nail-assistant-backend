@@ -177,7 +177,6 @@ function applyPromptOverridesToDesign({
       ? nextDesign.fingers.length
       : Object.keys(nextDesign.fingers || {}).length,
     firstFingerBase: nextDesign.fingers?.[0]?.base,
-    firstFingerLayers: nextDesign.fingers?.[0]?.layers,
     firstFingerCharms: nextDesign.fingers?.[0]?.charms,
   });
 
