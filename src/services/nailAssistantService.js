@@ -2725,6 +2725,22 @@ async function generateVariants({
   // cache templates if you have this global
   try { global.__TEMPLATES_CACHE = Array.isArray(templates) ? templates : []; } catch (_) {}
 
+  const normalizedTemplatesForVariants =
+    typeof getTemplatesCatalog === 'function'
+      ? getTemplatesCatalog(templates)
+      : (Array.isArray(templates) ? templates : []);
+
+  const templateIdsFromDocs = unique(
+    (Array.isArray(normalizedTemplatesForVariants)
+      ? normalizedTemplatesForVariants
+      : []
+    )
+      .map((t) => String(t?.templateId || t?.id || '').trim())
+      .filter(Boolean)
+  );
+
+  console.log('🧪 generateVariants template ids:', templateIdsFromDocs);
+
   // ---------- 1) candidates ----------
   let candidates = [];
 
