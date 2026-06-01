@@ -79,12 +79,24 @@ function applyPromptOverridesToDesign({
 
   const matchedColor = matchBaseColor(promptLower, colorLibrary);
 
+  const originalFingers = design.fingers;
+
+  let normalizedFingers = [];
+
+  if (Array.isArray(originalFingers)) {
+    normalizedFingers = [...originalFingers];
+  } else if (originalFingers && typeof originalFingers === 'object') {
+    normalizedFingers = Object.keys(originalFingers)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((key) => originalFingers[key]);
+  }
+
   const nextDesign = {
     ...design,
-    fingers: { ...design.fingers },
+    fingers: normalizedFingers,
   };
 
-  for (const fingerKey of Object.keys(nextDesign.fingers)) {
+  for (let fingerKey = 0; fingerKey < nextDesign.fingers.length; fingerKey++) {
     let finger = nextDesign.fingers[fingerKey];
     if (!finger) continue;
 
