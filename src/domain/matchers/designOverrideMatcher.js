@@ -13,6 +13,35 @@ function norm(v) {
   return String(v ?? '').trim().toLowerCase();
 }
 
+function promptWantsFrench(promptLower) {
+  return (
+    promptLower.includes('french') ||
+    promptLower.includes('tip') ||
+    promptLower.includes('v-cut') ||
+    promptLower.includes('v cut') ||
+    promptLower.includes('chevron')
+  );
+}
+
+function getAccentFingerKeys({ complexity, variantIndex }) {
+  const sets = [
+    ['left_ring', 'right_ring'],
+    ['left_middle', 'right_middle'],
+    ['left_thumb', 'right_thumb'],
+  ];
+
+  if (String(complexity || '').toLowerCase() === 'basic') {
+    return sets[variantIndex % sets.length];
+  }
+
+  return null; // null = apply to all fingers
+}
+
+function shouldApplyToFinger(fingerKey, accentKeys) {
+  if (!accentKeys) return true;
+  return accentKeys.includes(fingerKey);
+}
+
 function applyColorToFrenchTips(finger, matchedColor) {
   if (!finger || !matchedColor) return finger;
 
@@ -64,6 +93,7 @@ function applyPatternToBestPlacement({
 function applyPromptOverridesToDesign({
   design,
   prompt,
+  complexity,
   colorLibrary = [],
   charms = [],
   frenchTips = [],
@@ -72,12 +102,16 @@ function applyPromptOverridesToDesign({
   gelArt3D = [],
   stickers = [],
   variantIndex = 0,
+  complexity = '',
 }) {
   if (!design || !design.fingers) return design;
 
   const promptLower = norm(prompt);
 
   const matchedColor = matchBaseColor(promptLower, colorLibrary);
+
+  const wantsFrench = promptWantsFrench(promptLower);
+  const accentKeys = getAccentFingerKeys({ complexity, variantIndex });
 
   const fingerOrder = [
     'left_thumb',
@@ -127,65 +161,62 @@ function applyPromptOverridesToDesign({
 
     // 2. Color correction for French tips/base
     if (matchedColor) {
-      const wantsFrenchColor =
-        promptLower.includes('french') ||
-        promptLower.includes('tip') ||
-        promptLower.includes('v-cut') ||
-        promptLower.includes('v cut');
-
-      if (wantsFrenchColor) {
-        finger = applyColorToFrenchTips(finger, matchedColor);
-      } else {
-        finger = {
-          ...finger,
-          base: buildBaseFromColorDoc(matchedColor),
-        };
-      }
+    if (wantsFrench) {
+      // Put silver glitter inside the French tip, not the whole nail.
+      finger = applyColorToFrenchTips(finger, matchedColor);
+    } else {
+      finger = {
+        ...finger,
+        base: buildBaseFromColorDoc(matchedColor),
+      };
     }
+  }
 
     // 3. Pattern placement: inside french tip, inside stamp, or flat layer
-    finger = applyPatternToBestPlacement({
-      finger,
-      prompt: promptLower,
-      patterns,
-      variantIndex,
-    });
+    if (shouldApplyToFinger(fingerKey, accentKeys)) {
+      finger = applyPatternToBestPlacement({
+        finger,
+        prompt: promptLower,
+        patterns,
+        variantIndex,
+      });
 
-    // 4. Stamp matching
-    finger = applyPromptStampToFinger({
-      finger,
-      prompt: promptLower,
-      stamps,
-      variantIndex,
-    });
+      // 4. Stamp matching
+      finger = applyPromptStampToFinger({
+        finger,
+        prompt: promptLower,
+        stamps,
+        variantIndex,
+      });
 
-    // 5. Charm matching
-    finger = applyPromptCharmToFinger({
-      finger,
-      prompt: promptLower,
-      charms,
-      fingerKey,
-      variantIndex,
-    });
+      // 5. Charm matching
+      finger = applyPromptCharmToFinger({
+        finger,
+        prompt: promptLower,
+        charms,
+        fingerKey,
+        variantIndex,
+      });
 
-    // 6. Gel art
-    finger = applyPromptGelArtToFinger({
-      finger,
-      prompt: promptLower,
-      gelArt3D,
-      fingerKey,
-      shape: finger.shape || design.shape,
-      length: finger.length || design.length,
-      variantIndex,
-    });
+      // 6. Gel art
+      finger = applyPromptGelArtToFinger({
+        finger,
+        prompt: promptLower,
+        gelArt3D,
+        fingerKey,
+        shape: finger.shape || design.shape,
+        length: finger.length || design.length,
+        variantIndex,
+      });
 
-    // 7. Stickers, future update
-    finger = applyPromptStickerToFinger({
-      finger,
-      prompt: promptLower,
-      stickers,
-      variantIndex,
-    });
+      // 7. Stickers, future update
+      finger = applyPromptStickerToFinger({
+        finger,
+        prompt: promptLower,
+        stickers,
+        variantIndex,
+      });
+    }
 
     nextDesign.fingers[fingerKey] = finger;
   }
