@@ -2580,10 +2580,14 @@ async function generateVariants({
 
   if (!safePrompt) {
     return {
-      prompt: safePrompt,
-      nailDesign: null,
-      variants: [],
-      meta: {
+        prompt: safePrompt,
+        nailDesign: main,
+        variants,
+
+        // ✅ FlutterFlow reads this field
+        generatedDesigns: [main, ...variants].filter(Boolean),
+
+        meta: {
         mode: 'variants',
         serviceVersion: typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
         serviceFile: __filename,
