@@ -90,10 +90,52 @@ function applyPatternToBestPlacement({
   });
 }
 
+function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantIndex = 0 }) {
+  if (!finger) return finger;
+
+  const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
+  const hasFrench = layers.some((layer) => layer?.type === 'french_tip');
+
+  if (hasFrench) return finger;
+
+  const safeShape = String(finger.shape || shape || 'almond').toLowerCase();
+  const safeLength = String(finger.length || length || 'short').toLowerCase();
+
+  const variants = ['medium', 'thin', 'thick'];
+  const variant = variants[variantIndex % variants.length];
+
+  layers.push({
+    id: `french_v_cut_${variant}_${Date.now()}_${variantIndex}`,
+    type: 'french_tip',
+    style: 'v_cut',
+    variant,
+    thumbnailUi:
+      'https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/thumbnail_french_tip_v_cut.png',
+    canvasMaskUrl:
+      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/ui_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
+    unityMaskUrl:
+      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/unity_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
+    visible: true,
+    index: layers.length,
+    base: matchedColor ? buildBaseFromColorDoc(matchedColor) : null,
+    widthNorm: 1,
+    heightNorm: 1,
+    x: 0.5,
+    y: 0.5,
+    scale: 1,
+    rotation: 0,
+  });
+
+  return {
+    ...finger,
+    layers,
+  };
+}
+
 function applyPromptOverridesToDesign({
   design,
   prompt,
-  complexity,
+  complexity = '',
   colorLibrary = [],
   charms = [],
   frenchTips = [],
@@ -102,7 +144,6 @@ function applyPromptOverridesToDesign({
   gelArt3D = [],
   stickers = [],
   variantIndex = 0,
-  complexity = '',
 }) {
   if (!design || !design.fingers) return design;
 
@@ -158,6 +199,16 @@ function applyPromptOverridesToDesign({
       length: finger.length || design.length,
       variantIndex,
     });
+
+    if (wantsFrench) {
+      finger = ensureFrenchTipLayer({
+        finger,
+        shape: finger.shape || design.shape,
+        length: finger.length || design.length,
+        matchedColor,
+        variantIndex,
+      });
+    }
 
     // 2. Color correction for French tips/base
     if (matchedColor) {

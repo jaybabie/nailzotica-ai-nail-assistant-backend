@@ -1552,17 +1552,18 @@ async function generateOneDesign({
 
   try {
     nailDesign = applyPromptOverridesToDesign({
-      design: nailDesign,
-      prompt: safePrompt,
-      colorLibrary,
-      charms,
-      frenchTips,
-      patterns,
-      stamps,
-      gelArt3D,
-      stickers,
-      variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
-    });
+    design: nailDesign,
+    prompt: safePrompt,
+    complexity: chosenComplexity,
+    colorLibrary,
+    charms,
+    frenchTips,
+    patterns,
+    stamps,
+    gelArt3D,
+    stickers,
+    variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
+  });
 
     console.log('🧪 AFTER OVERRIDES SAMPLE', {
       shape: nailDesign?.shape,
@@ -2891,6 +2892,7 @@ async function generateVariants({
     prompt: safePrompt,
     nailDesign: main,
     variants,
+    generatedDesigns: [main, ...variants].filter(Boolean),
     meta: {
       mode: 'variants',
       serviceVersion: typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
