@@ -94,15 +94,33 @@ function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantInde
   if (!finger) return finger;
 
   const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
-  const hasFrench = layers.some((layer) => layer?.type === 'french_tip');
-
-  if (hasFrench) return finger;
 
   const safeShape = String(finger.shape || shape || 'almond').toLowerCase();
   const safeLength = String(finger.length || length || 'short').toLowerCase();
 
   const variants = ['medium', 'thin', 'thick'];
   const variant = variants[variantIndex % variants.length];
+
+    if (existingFrenchIndex >= 0) {
+    layers[existingFrenchIndex] = {
+      ...layers[existingFrenchIndex],
+      style: 'v_cut',
+      variant,
+      thumbnailUi:
+        'https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/thumbnail_french_tip_v_cut.png',
+      canvasMaskUrl:
+        `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/ui_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
+      unityMaskUrl:
+        `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/unity_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
+      base: matchedColor ? buildBaseFromColorDoc(matchedColor) : layers[existingFrenchIndex].base,
+      visible: true,
+    };
+
+    return {
+      ...finger,
+      layers,
+    };
+  }
 
   layers.push({
     id: `french_v_cut_${variant}_${Date.now()}_${variantIndex}`,
