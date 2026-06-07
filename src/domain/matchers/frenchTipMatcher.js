@@ -11,21 +11,21 @@ function frenchId(doc) {
 function promptFrenchStyle(prompt) {
   const p = norm(prompt);
 
-  if (p.includes('v-cut') || p.includes('v cut') || p.includes('v french') || p.includes('chevron')) {
+  if (
+    p.includes('v-cut') ||
+    p.includes('v cut') ||
+    p.includes('vcut') ||
+    p.includes('v french') ||
+    p.includes('chevron')
+  ) {
     return 'v_cut';
   }
 
-  if (p.includes('deep u') || p.includes('deep-u')) {
-    return 'deep_u';
-  }
+  if (p.includes('deep u') || p.includes('deep-u')) return 'deep_u';
+  if (p.includes('classic') || p.includes('classic french') || p.includes('u tip') || p.includes('u-tip')) return 'classic_u';
+  if (p.includes('straight')) return 'straight';
 
-  if (p.includes('classic') || p.includes('classic french') || p.includes('u tip') || p.includes('u-tip')) {
-    return 'classic_u';
-  }
-
-  if (p.includes('straight')) {
-    return 'straight';
-  }
+  if (p.includes('french')) return 'classic_u';
 
   return null;
 }
@@ -36,8 +36,6 @@ function promptFrenchVariation(prompt) {
   if (p.includes('thin') || p.includes('skinny') || p.includes('micro')) return 'thin';
   if (p.includes('medium')) return 'medium';
   if (p.includes('thick') || p.includes('bold')) return 'thick';
-  if (p.includes('short')) return 'short';
-  if (p.includes('long')) return 'long';
 
   return null;
 }
