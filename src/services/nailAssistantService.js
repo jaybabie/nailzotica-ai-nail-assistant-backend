@@ -1157,7 +1157,10 @@ async function generateOneDesign({
   // ----------------------------
   // 1) Shape + length
   // ----------------------------
-  const intent = llm && typeof llm === 'object' ? llm : {};
+  const llmResult = await runNailAssistantLLM({ prompt: safePrompt });
+  const intent = llmResult?.json && typeof llmResult.json === 'object'
+    ? llmResult.json
+    : {};
 
   let { shape, length } = (typeof resolveShapeLength === 'function')
     ? resolveShapeLength({
