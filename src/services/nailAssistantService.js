@@ -1272,15 +1272,6 @@ async function generateOneDesign({
     return true;
   };
 
-  const findByDocId = (docId) => {
-    const want = String(docId || '').trim();
-    if (!want) return null;
-    return (normalizedTemplates || []).find((t) => {
-      const id = String(t?.templateId ?? t?.id ?? '').trim();
-      return id === want;
-    }) || null;
-  };
-
   const pickLengthFallback = (pool, desiredLen) => {
     const want = norm(desiredLen);
     const orderByDesired = {
