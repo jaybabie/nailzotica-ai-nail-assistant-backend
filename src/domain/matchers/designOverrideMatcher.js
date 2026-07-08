@@ -13,13 +13,22 @@ function norm(v) {
   return String(v ?? '').trim().toLowerCase();
 }
 
-function promptWantsFrench(promptLower) {
+function promptWantsFrench(promptLower, intent = {}) {
   return (
+    intent?.frenchTipStyle ||
+    intent?.specificFrenchTipStyle ||
     promptLower.includes('french') ||
     promptLower.includes('tip') ||
     promptLower.includes('v-cut') ||
     promptLower.includes('v cut') ||
-    promptLower.includes('chevron')
+    promptLower.includes('deep u') ||
+    promptLower.includes('deep v') ||
+    promptLower.includes('classic u') ||
+    promptLower.includes('classic v') ||
+    promptLower.includes('straight') ||
+    promptLower.includes('diagonal') ||
+    promptLower.includes('outline') ||
+    promptLower.includes('reverse') 
   );
 }
 
@@ -42,27 +51,77 @@ function shouldApplyToFinger(fingerKey, accentKeys) {
   return accentKeys.includes(fingerKey);
 }
 
-function applyColorToFrenchTips(finger, matchedColor) {
+function recolorPaintLayer(paintLayer, matchedColor) {
+  if (!paintLayer || !matchedColor) return paintLayer;
+
+  const newBase = buildBaseFromColorDoc(matchedColor);
+
+  return {
+    ...paintLayer,
+    base: {
+      ...(paintLayer.base || {}),
+      ...newBase,
+      name: newBase.colorName,
+    },
+    color: {
+      ...(paintLayer.color || {}),
+      ...newBase,
+      name: newBase.colorName,
+    },
+  };
+}
+
+function applyMatchedColorToFingerArt(finger, matchedColor, { wantsFrench = false } = {}) {
   if (!finger || !matchedColor) return finger;
+
+  const newBase = buildBaseFromColorDoc(matchedColor);
 
   const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
 
-  return {
-    ...finger,
-    layers: layers.map((layer) => {
-      if (layer?.type !== 'french_tip') return layer;
+  const recoloredLayers = layers.map((layer) => {
+    if (!layer) return layer;
 
+    // French tip color
+    if (layer.type === 'french_tip') {
       return {
         ...layer,
-        base: buildBaseFromColorDoc(matchedColor),
+        base: newBase,
+        paintLayers: Array.isArray(layer.paintLayers)
+          ? layer.paintLayers.map((p) => recolorPaintLayer(p, matchedColor))
+          : layer.paintLayers,
       };
-    }),
+    }
+
+    // Normal paint layer
+    if (layer.type === 'paint') {
+      return recolorPaintLayer(layer, matchedColor);
+    }
+
+    // Any layer that has nested paintLayers
+    if (Array.isArray(layer.paintLayers)) {
+      return {
+        ...layer,
+        paintLayers: layer.paintLayers.map((p) => recolorPaintLayer(p, matchedColor)),
+      };
+    }
+
+    return layer;
+  });
+
+  return {
+    ...finger,
+
+    // If user asked french/pattern color, don't always recolor the whole base.
+    base: wantsFrench ? finger.base : newBase,
+
+    layers: recoloredLayers,
   };
 }
 
 function applyPatternToBestPlacement({
   finger,
   prompt,
+  intent = {},
   patterns,
   variantIndex,
 }) {
@@ -70,6 +129,7 @@ function applyPatternToBestPlacement({
 
   const matchedPattern = pickMatchingPattern({
     prompt,
+    intent,
     patterns,
     variantIndex,
   });
@@ -153,6 +213,7 @@ function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantInde
 function applyPromptOverridesToDesign({
   design,
   prompt,
+  intent = {},
   complexity = '',
   colorLibrary = [],
   charms = [],
@@ -167,9 +228,15 @@ function applyPromptOverridesToDesign({
 
   const promptLower = norm(prompt);
 
-  const matchedColor = matchBaseColor(promptLower, colorLibrary);
+ const matchedColor = matchBaseColor(
+    {
+      ...(intent || {}),
+      prompt: promptLower,
+    },
+    colorLibrary
+  );
 
-  const wantsFrench = promptWantsFrench(promptLower);
+  const wantsFrench = promptWantsFrench(promptLower, intent);
   const accentKeys = getAccentFingerKeys({ complexity, variantIndex });
 
   const fingerOrder = [
@@ -212,12 +279,14 @@ function applyPromptOverridesToDesign({
     finger = applyPromptFrenchTipToFinger({
       finger,
       prompt: promptLower,
+      intent,
       frenchTips,
       shape: finger.shape || design.shape,
       length: finger.length || design.length,
       variantIndex,
     });
-
+    
+    // 2. If prompt wants french and no french exists, add fallback french
     if (wantsFrench) {
       finger = ensureFrenchTipLayer({
         finger,
@@ -228,50 +297,48 @@ function applyPromptOverridesToDesign({
       });
     }
 
-    // 2. Color correction for French tips/base
-    if (matchedColor) {
-    if (wantsFrench) {
-      // Put silver glitter inside the French tip, not the whole nail.
-      finger = applyColorToFrenchTips(finger, matchedColor);
-    } else {
-      finger = {
-        ...finger,
-        base: buildBaseFromColorDoc(matchedColor),
-      };
+    // 3. Color correction for French tips/base
+   if (matchedColor) {
+      finger = applyMatchedColorToFingerArt(finger, matchedColor, {
+        wantsFrench,
+      });
     }
-  }
 
-    // 3. Pattern placement: inside french tip, inside stamp, or flat layer
+    // 4. Pattern placement: inside french tip, inside stamp, or flat layer
     if (shouldApplyToFinger(fingerKey, accentKeys)) {
       finger = applyPatternToBestPlacement({
         finger,
         prompt: promptLower,
+        intent,
         patterns,
         variantIndex,
       });
 
-      // 4. Stamp matching
+      // 5. Stamp matching
       finger = applyPromptStampToFinger({
         finger,
         prompt: promptLower,
+        intent,
         stamps,
         variantIndex,
       });
 
-      // 5. Charm matching
+      // 6. Charm matching
       finger = applyPromptCharmToFinger({
         finger,
         prompt: promptLower,
         charms,
+        intent,
         fingerKey,
         variantIndex,
       });
 
-      // 6. Gel art
+      // 7. Gel art
       finger = applyPromptGelArtToFinger({
         finger,
         prompt: promptLower,
         gelArt3D,
+        intent,
         fingerKey,
         shape: finger.shape || design.shape,
         length: finger.length || design.length,

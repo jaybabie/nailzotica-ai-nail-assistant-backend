@@ -8,22 +8,39 @@ function frenchId(doc) {
   return String(doc?.id || doc?.frenchTipId || doc?.docId || '').trim();
 }
 
-function promptFrenchStyle(prompt) {
+function promptFrenchStyle(prompt, intent = {}) {
   const p = norm(prompt);
 
-  if (
-    p.includes('v-cut') ||
-    p.includes('v cut') ||
-    p.includes('vcut') ||
-    p.includes('v french') ||
-    p.includes('chevron')
-  ) {
-    return 'v_cut';
-  }
+  const requested = norm(intent?.frenchTipStyle || intent?.specificFrenchTipStyle || '');
+  if (requested) return requested;
+
+  if (p.includes('double classic u')) return 'double_classic_u';
+
+  if (p.includes('double diagonal left')) return 'double_diagonal_left';
+  if (p.includes('double diagonal right')) return 'double_diagonal_right';
+
+  if (p.includes('diagonal left')) return 'diagonal_left';
+  if (p.includes('diagonal right')) return 'diagonal_right';
+
+  if (p.includes('classic outlined')) return 'classic_outlined';
+
+  if (p.includes('full outline')) return 'full_outline';
+  if (p.includes('reverse outline')) return 'reverse_outline';
+  if (p.includes('outline')) return 'outline';
 
   if (p.includes('deep u') || p.includes('deep-u')) return 'deep_u';
-  if (p.includes('classic') || p.includes('classic french') || p.includes('u tip') || p.includes('u-tip')) return 'classic_u';
+  if (p.includes('deep v') || p.includes('deep-v')) return 'deep_v';
+
+  if (p.includes('classic v') || p.includes('v french') || p.includes('v-cut') || p.includes('v cut') || p.includes('chevron')) {
+    return 'classic_v';
+  }
+
+  if (p.includes('classic u') || p.includes('classic french') || p.includes('u tip') || p.includes('u-tip')) {
+    return 'classic_u';
+  }
+
   if (p.includes('straight')) return 'straight';
+  if (p.includes('reverse')) return 'reverse';
 
   if (p.includes('french')) return 'classic_u';
 
@@ -44,7 +61,7 @@ function scoreFrenchTip(doc, { prompt, shape, length }) {
   if (!doc) return -999999;
 
   const p = norm(prompt);
-  const wantedStyle = promptFrenchStyle(p);
+  const wantedStyle = promptFrenchStyle(p, arguments[1]?.intent || {});
   const wantedVariation = promptFrenchVariation(p);
 
   let score = 0;
@@ -84,6 +101,7 @@ function scoreFrenchTip(doc, { prompt, shape, length }) {
 
 function pickMatchingFrenchTip({
   prompt,
+  intent = {},
   frenchTips,
   shape,
   length,
@@ -96,7 +114,7 @@ function pickMatchingFrenchTip({
     .map((doc) => ({
       doc,
       id: frenchId(doc),
-      score: scoreFrenchTip(doc, { prompt, shape, length }),
+      score: scoreFrenchTip(doc, { prompt, intent, shape, length }),
     }))
     .filter((x) => x.id && x.score > 0)
     .sort((a, b) => {
@@ -147,6 +165,7 @@ function buildFrenchTipLayerFromDoc({
 function applyPromptFrenchTipToFinger({
   finger,
   prompt,
+  intent = {},
   frenchTips,
   shape,
   length,
@@ -155,17 +174,21 @@ function applyPromptFrenchTipToFinger({
   if (!finger) return finger;
 
   const p = norm(prompt);
+  const requestedStyle = norm(intent?.frenchTipStyle || intent?.specificFrenchTipStyle || '');
   const wantsFrench =
-    p.includes('french') ||
-    p.includes('tip') ||
-    p.includes('v-cut') ||
-    p.includes('v cut') ||
-    p.includes('chevron');
+  requestedStyle ||
+  p.includes('french') ||
+  p.includes('tip') ||
+  p.includes('v-cut') ||
+  p.includes('v cut') ||
+  p.includes('deep u');
+
 
   if (!wantsFrench) return finger;
 
   const matched = pickMatchingFrenchTip({
     prompt,
+    intent,
     frenchTips,
     shape: finger.shape || shape,
     length: finger.length || length,

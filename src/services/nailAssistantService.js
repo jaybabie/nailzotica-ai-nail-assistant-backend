@@ -12,6 +12,11 @@ const {
   buildBaseFromColorDoc,
 } = require('../domain/matchers/colorMatcher');
 
+const {
+  rankFingerTemplates,
+  pickFingerTemplate,
+} = require('../domain/matchers/templateMatcher');
+
 
 const SERVICE_VERSION = 'v1001_combined_variants_mirror_2025-12-14';
 
@@ -1152,9 +1157,18 @@ async function generateOneDesign({
   // ----------------------------
   // 1) Shape + length
   // ----------------------------
+  const intent = llm && typeof llm === 'object' ? llm : {};
+
   let { shape, length } = (typeof resolveShapeLength === 'function')
-    ? resolveShapeLength({ promptLower, shapeOverride, lengthOverride })
-    : { shape: shapeOverride, length: lengthOverride };
+    ? resolveShapeLength({
+        promptLower,
+        shapeOverride: shapeOverride || intent.shape,
+        lengthOverride: lengthOverride || intent.length,
+      })
+    : {
+        shape: shapeOverride || intent.shape,
+        length: lengthOverride || intent.length,
+      };
 
   shape = norm(shape) || 'square';
   length = norm(length) || 'medium';
@@ -1289,13 +1303,42 @@ async function generateOneDesign({
 
   let chosenTemplate = null;
   let relaxedLengthUsed = false;
+  let rankedTemplates = [];
 
-  // 4a) If templateId provided (from variants) honor if it exists
+  const findByDocId = (docId) => {
+    const want = String(docId || '').trim();
+    if (!want) return null;
+
+    return (normalizedTemplates || []).find((t) => {
+      const id = String(t?.templateId ?? t?.id ?? t?.docId ?? '').trim();
+      return id === want;
+    }) || null;
+  };
+
+  // 4a) If templateId was explicitly requested, use it.
   if (requestedTemplateId) {
     chosenTemplate = findByDocId(requestedTemplateId);
   }
 
-  // 4b) Else: strict shape+length, else relax to shape-only
+  // 4b) Otherwise rank templates using the new title-first matcher.
+  if (!chosenTemplate) {
+    rankedTemplates = rankFingerTemplates({
+      prompt: safePrompt,
+      intent,
+      shape,
+      length,
+      complexity: complexity || intent.complexity,
+      templates: normalizedTemplates,
+      seed,
+      limit: 30,
+    });
+
+    if (rankedTemplates.length > 0) {
+      chosenTemplate = rankedTemplates[0].template;
+    }
+  }
+
+  // 4c) Fallback if ranking found nothing.
   if (!chosenTemplate) {
     const strictPool = (normalizedTemplates || []).filter((t) =>
       matchesShapeLength(t, shape, length)
@@ -1316,27 +1359,6 @@ async function generateOneDesign({
     }
   }
 
-  if (!chosenTemplate) {
-    return {
-      prompt: safePrompt,
-      nailDesign: null,
-      error: `No templates found for shape="${shape}" length="${length}"`,
-      meta: {
-        mode: 'single',
-        serviceVersion:
-          typeof SERVICE_VERSION !== 'undefined' ? SERVICE_VERSION : 'unknown',
-        serviceFile: __filename,
-        resolved: { shape, length },
-        templatesCount,
-        requestedTemplateId: requestedTemplateId || null,
-        chosenTemplateDocId: null,
-        finalTemplateId: null,
-        relaxedLengthUsed: false,
-        chosenTemplateLength: null,
-      },
-    };
-  }
-
   const chosenTemplateDocId =
     String(chosenTemplate?.templateId ?? chosenTemplate?.id ?? '').trim() || null;
 
@@ -1350,7 +1372,7 @@ async function generateOneDesign({
   // ----------------------------
   // ✅ 4c) Complexity decision (request > template > default)
   // ----------------------------
-  const cxIn = norm(complexity || '');
+  const cxIn = norm(complexity || intent.complexity || '');
   const chosenComplexity =
     (['low', 'medium', 'complex'].includes(cxIn) ? cxIn : null) ||
     norm(chosenTemplate?.complexity || 'low') ||
@@ -1374,8 +1396,12 @@ async function generateOneDesign({
   const baseTpl = chosenTemplate;
   const baseTplId = getDocId(baseTpl);
 
+  const rankedPool = rankedTemplates.length
+    ? rankedTemplates.map((x) => x.template)
+    : pool;
+
   const otherTpls = shuffle(
-    pool.filter((t) => getDocId(t) && getDocId(t) !== baseTplId)
+    rankedPool.filter((t) => getDocId(t) && getDocId(t) !== baseTplId)
   );
 
   const pickedTpls = [baseTpl, ...otherTpls].filter(Boolean).slice(0, Math.min(wantUnique, 1 + otherTpls.length));
@@ -1556,6 +1582,7 @@ async function generateOneDesign({
     prompt: safePrompt,
     complexity: chosenComplexity,
     colorLibrary,
+    intent,
     charms,
     frenchTips,
     patterns,
@@ -1617,6 +1644,12 @@ async function generateOneDesign({
       // finger variety info (helps debugging)
       uniqueTemplateTarget: wantUnique,
       pickedTemplateIds: pickedTpls.map((t) => getDocId(t)).filter(Boolean),
+      rankedTemplateScores: rankedTemplates.slice(0, 10).map((x) => ({
+        id: x.id,
+        name: x.name,
+        score: Number(x.score.toFixed(2)),
+        breakdown: x.breakdown,
+      })),
       accentIndexes: Array.from(accentSet),
       accentCount: Array.from(accentSet).length,
       explicitFingerOverrides: overrideIndexes.length > 0,

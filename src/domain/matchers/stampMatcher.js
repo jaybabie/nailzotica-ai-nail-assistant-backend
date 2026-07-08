@@ -111,6 +111,7 @@ function scoreStamp(stamp, promptTokens, promptLower) {
 
 function pickMatchingStamp({
   prompt,
+  intent = null,
   stamps,
   variantIndex = 0,
   excludeIds = [],
@@ -119,7 +120,24 @@ function pickMatchingStamp({
   if (!list.length) return null;
 
   const promptLower = norm(prompt);
-  const promptTokens = tokenizePrompt(promptLower);
+
+  const intentWords = [
+    ...arr(intent?.primaryKeywords),
+    ...arr(intent?.secondaryKeywords),
+    ...arr(intent?.synonyms),
+    ...arr(intent?.motifs),
+    ...arr(intent?.styleTags),
+    ...arr(intent?.stampKeywords),
+    ...arr(intent?.specificStampNames),
+  ];
+
+  const promptTokens = Array.from(
+    new Set([
+      ...tokenizePrompt(promptLower),
+      ...intentWords.map(norm).filter(Boolean),
+    ])
+  );
+
   const excluded = new Set((excludeIds || []).map(String));
 
   const scored = list
@@ -234,6 +252,7 @@ function buildStampLayerFromDoc({
 function applyPromptStampToFinger({
   finger,
   prompt,
+  intent = null,
   stamps,
   variantIndex = 0,
 }) {
@@ -248,6 +267,7 @@ function applyPromptStampToFinger({
 
   const matchedStamp = pickMatchingStamp({
     prompt,
+    intent,
     stamps,
     variantIndex,
     excludeIds: variantIndex > 0 ? usedIds : [],
