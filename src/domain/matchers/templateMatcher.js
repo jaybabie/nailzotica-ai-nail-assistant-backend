@@ -161,9 +161,41 @@ function scoreTemplate({
   const tShape = norm(template.shape || template.nailShape);
   const tLength = norm(template.length || template.nailLength);
 
-  if (wantedShape && tShape && wantedShape !== tShape) return null;
-  if (wantedLength && tLength && wantedLength !== tLength) return null;
+  let shapeLengthScore = 0;
+  let adaptationCost = 0;
+  let shapeAdapted = false;
+  let lengthAdapted = false;
 
+  // Exact shape + length is best
+  if (wantedShape && tShape) {
+    if (wantedShape === tShape) {
+      shapeLengthScore += 30;
+    } else {
+      shapeLengthScore -= 6;
+      adaptationCost += 6;
+      shapeAdapted = true;
+    }
+  }
+
+  if (wantedLength && tLength) {
+    if (wantedLength === tLength) {
+      shapeLengthScore += 40;
+    } else {
+      shapeLengthScore -= 12;
+      adaptationCost += 12;
+      lengthAdapted = true;
+    }
+  }
+
+  // Same length should still be strongly considered, even if shape differs.
+  if (wantedLength && tLength && wantedLength === tLength && wantedShape && tShape && wantedShape !== tShape) {
+    shapeLengthScore += 18;
+  }
+
+  // Same shape but wrong length is allowed, but weaker.
+  if (wantedShape && tShape && wantedShape === tShape && wantedLength && tLength && wantedLength !== tLength) {
+    shapeLengthScore += 8;
+  }
   const wantedComplexity = normalizeComplexity(complexity || intent.complexity);
   const templateComplexity = normalizeComplexity(template.complexity);
 
@@ -233,6 +265,7 @@ function scoreTemplate({
   const randomScore = seededTinyScore(`${seed}_${id}`);
 
   const finalScore =
+    shapeLengthScore +
     titleScore +
     tagScore +
     categoryScore +
@@ -247,7 +280,17 @@ function scoreTemplate({
     id,
     name: templateName(template),
     score: finalScore,
+    adaptation: {
+      shapeAdapted,
+      lengthAdapted,
+      adaptationCost,
+      requestedShape: wantedShape || null,
+      requestedLength: wantedLength || null,
+      templateShape: tShape || null,
+      templateLength: tLength || null,
+    },
     breakdown: {
+      shapeLengthScore,
       titleScore,
       tagScore,
       categoryScore,

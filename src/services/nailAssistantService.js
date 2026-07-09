@@ -3,6 +3,8 @@ console.log('✅ RUNNING nailAssistantService.js from:', __filename);
 
 const { runNailAssistantLLM } = require('./openaiClient');
 
+const sharp = require('sharp');
+
 const { normalizeNailDesign } = require('../domain/validators/normalizeNailDesign');
 const { getCollection } = require('../config/firestore');
 const { applyPromptOverridesToDesign } = require('../domain/matchers/designOverrideMatcher');
@@ -1224,6 +1226,8 @@ async function generateOneDesign({
     charms = await safeGet('charms');
   }
 
+  let nails = await safeGet('nails');
+
   let stamps = await safeGet('stamp_library');
   if (!stamps.length) {
     stamps = await safeGet('stamps');
@@ -1418,8 +1422,14 @@ async function generateOneDesign({
       // ✅ per-finger template identity
       templateId: getDocId(tplDoc) || null,
       templateName: tplDoc?.name ?? tplDoc?.label ?? null,
-      shape: tplDoc?.shape ?? shape,
-      length: tplDoc?.length ?? length,
+      adaptedFromShape: tplDoc?.shape ?? null,
+      adaptedFromLength: tplDoc?.length ?? null,
+
+      shape,
+      length,
+
+      shapeAdapted: tplDoc?.shape && String(tplDoc.shape).toLowerCase() !== String(shape).toLowerCase(),
+      lengthAdapted: tplDoc?.length && String(tplDoc.length).toLowerCase() !== String(length).toLowerCase(),
       uiImageUrl: tplDoc?.uiImageUrl ?? tplDoc?.thumbnailUi ?? tplDoc?.imageUrl ?? '',
       modelUrl: tplDoc?.modelUrl ?? '',
 
@@ -1586,6 +1596,8 @@ async function generateOneDesign({
     variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
   });
 
+  nailDesign = await removeOutOfBoundsElementsBackend(nailDesign, nails);
+
     console.log('🧪 AFTER OVERRIDES SAMPLE', {
       shape: nailDesign?.shape,
       length: nailDesign?.length,
@@ -1659,6 +1671,194 @@ async function generateOneDesign({
 
       templatesCacheLen: Array.isArray(global.__TEMPLATES_CACHE) ? global.__TEMPLATES_CACHE.length : 0,
     },
+  };
+}
+
+async function removeOutOfBoundsElementsBackend(nailDesign, nails = []) {
+  if (!nailDesign || !nailDesign.fingers) return nailDesign;
+
+  const maskDocByKey = new Map();
+
+  for (const nail of nails || []) {
+    const shape = String(nail.shape || '').toLowerCase();
+    const length = String(nail.length || '').toLowerCase();
+    if (!shape || !length) continue;
+
+    maskDocByKey.set(`${shape}_${length}`, {
+      maskUrl: nail.uiClippingMask || nail.clippingMaskUrl || '',
+    });
+  }
+
+  const maskCache = new Map();
+
+  async function loadMask(maskUrl) {
+    if (!maskUrl) return null;
+    if (maskCache.has(maskUrl)) return maskCache.get(maskUrl);
+
+    const res = await fetch(maskUrl);
+    if (!res.ok) throw new Error(`Mask fetch failed ${res.status}: ${maskUrl}`);
+
+    const inputBuffer = Buffer.from(await res.arrayBuffer());
+
+    const image = await sharp(inputBuffer)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const mask = {
+      width: image.info.width,
+      height: image.info.height,
+      bytes: image.data,
+    };
+
+    maskCache.set(maskUrl, mask);
+    return mask;
+  }
+
+  function toNum(v, fallback) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function pointInsideMask(mask, xNorm, yNorm) {
+    if (!mask) return true;
+    if (xNorm < 0 || xNorm > 1 || yNorm < 0 || yNorm > 1) return false;
+
+    const x = Math.max(0, Math.min(mask.width - 1, Math.round(xNorm * (mask.width - 1))));
+    const y = Math.max(0, Math.min(mask.height - 1, Math.round(yNorm * (mask.height - 1))));
+
+    const i = ((y * mask.width) + x) * 4;
+
+    const r = mask.bytes[i];
+    const g = mask.bytes[i + 1];
+    const b = mask.bytes[i + 2];
+    const a = mask.bytes[i + 3];
+
+    const brightness = (r + g + b) / 3;
+
+    return a > 30 && brightness > 30;
+  }
+
+  function itemInsideMask(item, mask) {
+    const position = item?.position || {};
+
+    const x = toNum(
+      item?.x ?? item?.offsetX ?? item?.centerX ?? position?.x,
+      0.5
+    );
+
+    const y = toNum(
+      item?.y ?? item?.offsetY ?? item?.centerY ?? position?.y,
+      0.5
+    );
+
+    const widthNorm = toNum(
+      item?.widthNorm ?? item?.normalizedWidth ?? item?.width ?? item?.w,
+      0.08
+    );
+
+    const heightNorm = toNum(
+      item?.heightNorm ?? item?.normalizedHeight ?? item?.height ?? item?.h,
+      widthNorm
+    );
+
+    const scale = Math.max(0.05, Math.min(8, toNum(item?.scale ?? item?.sizeScale, 1)));
+
+    const halfW = (widthNorm * scale * 0.65) / 2;
+    const halfH = (heightNorm * scale * 0.65) / 2;
+
+    const points = [
+      [x, y],
+      [x - halfW, y],
+      [x + halfW, y],
+      [x, y - halfH],
+      [x, y + halfH],
+      [x - halfW, y - halfH],
+      [x + halfW, y - halfH],
+      [x - halfW, y + halfH],
+      [x + halfW, y + halfH],
+    ];
+
+    return points.every(([px, py]) => pointInsideMask(mask, px, py));
+  }
+
+  function gelInsideMask(item, mask) {
+    const possibleLists = [
+      item?.points,
+      item?.path,
+      item?.strokePoints,
+      item?.gelPoints,
+    ];
+
+    for (const rawList of possibleLists) {
+      if (Array.isArray(rawList) && rawList.length) {
+        return rawList.every((rawPoint) => {
+          if (!rawPoint || typeof rawPoint !== 'object') return true;
+
+          const x = toNum(rawPoint.x ?? rawPoint.dx ?? rawPoint.offsetX, 0.5);
+          const y = toNum(rawPoint.y ?? rawPoint.dy ?? rawPoint.offsetY, 0.5);
+
+          return pointInsideMask(mask, x, y);
+        });
+      }
+    }
+
+    return itemInsideMask(item, mask);
+  }
+
+  const fingers = { ...(nailDesign.fingers || {}) };
+
+  for (const [fingerKey, fingerRaw] of Object.entries(fingers)) {
+    const finger = { ...(fingerRaw || {}) };
+
+    const shouldClean =
+      finger.shapeAdapted === true ||
+      finger.lengthAdapted === true ||
+      (Array.isArray(finger.charms) && finger.charms.length > 0) ||
+      (Array.isArray(finger.gelArt) && finger.gelArt.length > 0) ||
+      (Array.isArray(finger.gelArt3D) && finger.gelArt3D.length > 0);
+
+    if (!shouldClean) continue;
+
+    const shape = String(finger.shape || nailDesign.shape || 'square').toLowerCase();
+    const length = String(finger.length || nailDesign.length || 'medium').toLowerCase();
+
+    const nailMaskDoc = maskDocByKey.get(`${shape}_${length}`);
+    const mask = await loadMask(nailMaskDoc?.maskUrl || '');
+
+    if (!mask) continue;
+
+    const beforeCharms = Array.isArray(finger.charms) ? finger.charms.length : 0;
+    const beforeGel = Array.isArray(finger.gelArt) ? finger.gelArt.length : 0;
+    const beforeGel3D = Array.isArray(finger.gelArt3D) ? finger.gelArt3D.length : 0;
+
+    finger.charms = Array.isArray(finger.charms)
+      ? finger.charms.filter((item) => itemInsideMask(item, mask))
+      : [];
+
+    finger.gelArt = Array.isArray(finger.gelArt)
+      ? finger.gelArt.filter((item) => gelInsideMask(item, mask))
+      : [];
+
+    finger.gelArt3D = Array.isArray(finger.gelArt3D)
+      ? finger.gelArt3D.filter((item) => gelInsideMask(item, mask))
+      : [];
+
+    console.log('🧼 mask cleanup:', {
+      fingerKey,
+      shape,
+      length,
+      charms: `${beforeCharms} -> ${finger.charms.length}`,
+      gelArt: `${beforeGel} -> ${finger.gelArt.length}`,
+      gelArt3D: `${beforeGel3D} -> ${finger.gelArt3D.length}`,
+    });
+
+    fingers[fingerKey] = finger;
+  }
+
+  return {
+    ...nailDesign,
+    fingers,
   };
 }
 

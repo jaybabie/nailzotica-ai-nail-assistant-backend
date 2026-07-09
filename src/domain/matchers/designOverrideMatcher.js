@@ -155,54 +155,47 @@ function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantInde
 
   const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
 
-  const safeShape = String(finger.shape || shape || 'almond').toLowerCase();
-  const safeLength = String(finger.length || length || 'short').toLowerCase();
+  const existingFrenchIndex = layers.findIndex((layer) => {
+    return layer && layer.type === 'french_tip';
+  });
 
-  const variants = ['medium', 'thin', 'thick'];
-  const variant = variants[variantIndex % variants.length];
-
-    if (existingFrenchIndex >= 0) {
-    layers[existingFrenchIndex] = {
-      ...layers[existingFrenchIndex],
-      style: 'v_cut',
-      variant,
-      thumbnailUi:
-        'https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/thumbnail_french_tip_v_cut.png',
-      canvasMaskUrl:
-        `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/ui_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
-      unityMaskUrl:
-        `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/unity_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
-      base: matchedColor ? buildBaseFromColorDoc(matchedColor) : layers[existingFrenchIndex].base,
-      visible: true,
-    };
-
-    return {
-      ...finger,
-      layers,
-    };
+  // If there is no french tip layer, do nothing here.
+  // The real french tip matcher should add one when needed.
+  if (existingFrenchIndex < 0) {
+    return finger;
   }
 
-  layers.push({
-    id: `french_v_cut_${variant}_${Date.now()}_${variantIndex}`,
-    type: 'french_tip',
-    style: 'v_cut',
-    variant,
-    thumbnailUi:
-      'https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/thumbnail_french_tip_v_cut.png',
+  const oldFrenchTip = layers[existingFrenchIndex];
+
+  const safeShape = String(finger.shape || shape || '').trim().toLowerCase();
+  const safeLength = String(finger.length || length || '').trim().toLowerCase();
+
+  const selectedStyle = String(oldFrenchTip.style || 'classic_u').trim();
+  const selectedVariant = String(
+    oldFrenchTip.variant || oldFrenchTip.variation || 'medium'
+  ).trim();
+
+  // This only rebuilds the mask URL using the same style/variant.
+  // Later, the Firestore french_tip matcher should be the source of truth.
+  layers[existingFrenchIndex] = {
+    ...oldFrenchTip,
+    style: selectedStyle,
+    variant: selectedVariant,
     canvasMaskUrl:
-      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/ui_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
+      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/ui_mask_nail_${safeShape}_${safeLength}_french_tip_${selectedStyle}_${selectedVariant}.png`,
     unityMaskUrl:
-      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/unity_mask_nail_${safeShape}_${safeLength}_french_tip_v_cut_${variant}.png`,
-    visible: true,
-    index: layers.length,
-    base: matchedColor ? buildBaseFromColorDoc(matchedColor) : null,
+      `https://nailzotica.s3.us-east-2.amazonaws.com/design_assets/nails/french_tip/${safeShape}_${safeLength}/unity_mask_nail_${safeShape}_${safeLength}_french_tip_${selectedStyle}_${selectedVariant}.png`,
+    shape: safeShape,
+    length: safeLength,
+    base: matchedColor ? buildBaseFromColorDoc(matchedColor) : oldFrenchTip.base,
     widthNorm: 1,
     heightNorm: 1,
     x: 0.5,
     y: 0.5,
     scale: 1,
     rotation: 0,
-  });
+    visible: true,
+  };
 
   return {
     ...finger,
@@ -286,8 +279,19 @@ function applyPromptOverridesToDesign({
       variantIndex,
     });
     
-    // 2. If prompt wants french and no french exists, add fallback french
-    if (wantsFrench) {
+    const hasFrenchTip =
+      Array.isArray(finger.layers) &&
+      finger.layers.some((layer) => layer && layer.type === 'french_tip');
+
+    const needsFrenchMaskSwap =
+      hasFrenchTip &&
+      (
+        wantsFrench ||
+        finger.shapeAdapted === true ||
+        finger.lengthAdapted === true
+      );
+
+    if (needsFrenchMaskSwap) {
       finger = ensureFrenchTipLayer({
         finger,
         shape: finger.shape || design.shape,
