@@ -194,49 +194,6 @@ function weightedIntentGroups(intent = {}) {
   };
 }
 
-function scoreTermsAgainstTemplate({
-  terms,
-  name,
-  tagSet,
-  tags,
-  category,
-  weight,
-  missingPenalty = 0,
-}) {
-  let score = 0;
-  const matched = [];
-  const missing = [];
-
-  for (const term of terms) {
-    let didMatch = false;
-
-    if (name.includes(term)) {
-      score += weight;
-      matched.push(term);
-      didMatch = true;
-    } else if (tagSet.has(term)) {
-      score += Math.round(weight * 0.75);
-      matched.push(term);
-      didMatch = true;
-    } else if (tags.some((t) => t.includes(term) || term.includes(t))) {
-      score += Math.round(weight * 0.35);
-      matched.push(term);
-      didMatch = true;
-    } else if (category && category.includes(term)) {
-      score += Math.round(weight * 0.35);
-      matched.push(term);
-      didMatch = true;
-    }
-
-    if (!didMatch) {
-      missing.push(term);
-      score -= missingPenalty;
-    }
-  }
-
-  return { score, matched, missing };
-}
-
 function scoreTemplate({
   template,
   prompt = '',
