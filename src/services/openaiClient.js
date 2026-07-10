@@ -222,6 +222,11 @@ function fallbackIntentFromPrompt(prompt) {
   else if (p.includes('glam') || p.includes('cute glam')) complexity = 'medium';
   else if (p.includes('extra') || p.includes('maximal') || p.includes('each finger')) complexity = 'complex';
 
+  const required = [];
+  const highPriority = [];
+  const preferred = [];
+  const optional = [];
+
   const primaryKeywords = [];
   const secondaryKeywords = [];
   const colorFamilies = [];
@@ -258,7 +263,7 @@ function fallbackIntentFromPrompt(prompt) {
   addIf(p.includes('pink'), colorFamilies, 'pinks');
   addIf(p.includes('red'), colorFamilies, 'reds');
   addIf(p.includes('black'), colorFamilies, 'blacks & grays');
-  addIf(p.includes('white'), colorFamilies, 'whites');
+  addIf(p.includes('white'), colorFamilies, 'neutrals');
   addIf(p.includes('nude'), colorFamilies, 'neutrals');
   addIf(p.includes('gold') || p.includes('silver') || p.includes('chrome'), colorFamilies, 'metallics');
   
