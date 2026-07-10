@@ -328,8 +328,6 @@ function scoreTemplate({
     ...highPriorityScore.missing,
   ]));
 
-  let missing = [];
-
   const requiredScore = scoreTermsAgainstTemplate({
     terms: groups.required,
     name,
