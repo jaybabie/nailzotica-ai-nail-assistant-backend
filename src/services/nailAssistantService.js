@@ -1381,9 +1381,9 @@ async function generateOneDesign({
   // low -> 2, medium -> 3, complex -> 5
   // ----------------------------
   const wantUnique =
-    chosenComplexity === 'complex' ? 5 :
-    chosenComplexity === 'medium' ? 3 :
-    2;
+    chosenComplexity === 'complex' ? (mirrorOn ? 5 : 10) :
+    chosenComplexity === 'medium' ? (mirrorOn ? 3 : 5) :
+    (mirrorOn ? 2 : 3);
 
   const strictPool = (normalizedTemplates || []).filter((t) => matchesShapeLength(t, shape, length));
   const shapeOnlyPool = (normalizedTemplates || []).filter((t) => matchesShape(t, shape));
@@ -1402,7 +1402,23 @@ async function generateOneDesign({
     rankedPool.filter((t) => getDocId(t) && getDocId(t) !== baseTplId)
   );
 
-  const pickedTpls = [baseTpl, ...otherTpls].filter(Boolean).slice(0, Math.min(wantUnique, 1 + otherTpls.length));
+  let pickedTpls = [baseTpl, ...otherTpls].filter(Boolean).slice(0, wantUnique);
+
+  // If there are not enough matching templates, reuse ranked templates before collapsing to one.
+  if (pickedTpls.length < wantUnique && rankedTemplates.length) {
+    const existingIds = new Set(pickedTpls.map((t) => getDocId(t)));
+
+    for (const ranked of rankedTemplates) {
+      const t = ranked.template;
+      const id = getDocId(t);
+      if (!id || existingIds.has(id)) continue;
+
+      pickedTpls.push(t);
+      existingIds.add(id);
+
+      if (pickedTpls.length >= wantUnique) break;
+    }
+  }
 
   const accentTpls = pickedTpls.slice(1);
 
