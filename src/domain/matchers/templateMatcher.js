@@ -26,11 +26,9 @@ function templateName(t) {
 
 function normalizeComplexity(v) {
   const s = norm(v);
-
   if (s === 'basic' || s === 'low') return 'low';
   if (s === 'glam' || s === 'medium' || s === 'med') return 'medium';
   if (s === 'extra' || s === 'complex' || s === 'high') return 'complex';
-
   return '';
 }
 
@@ -44,7 +42,6 @@ function tokenizeText(text) {
 
 function buildIntentKeywords({ prompt = '', intent = {} }) {
   const out = new Set();
-
   const add = (x) => {
     const s = normToken(x);
     if (s) out.add(s);
@@ -64,6 +61,10 @@ function buildIntentKeywords({ prompt = '', intent = {} }) {
     'themeKeywords',
     'colorHints',
     'finishes',
+    'required',
+    'highPriority',
+    'preferred',
+    'optional',
   ]) {
     for (const x of arr(intent[key])) add(x);
   }
@@ -74,19 +75,8 @@ function buildIntentKeywords({ prompt = '', intent = {} }) {
   }
 
   const stop = new Set([
-    'nail',
-    'nails',
-    'set',
-    'with',
-    'and',
-    'the',
-    'for',
-    'please',
-    'make',
-    'want',
-    'like',
-    'give',
-    'me',
+    'nail', 'nails', 'set', 'with', 'and', 'the', 'for',
+    'please', 'make', 'want', 'like', 'give', 'me',
   ]);
 
   return Array.from(out).filter((x) => !stop.has(x));
@@ -111,20 +101,19 @@ function expandKeyword(keyword) {
 
     french: ['french tip'],
     tip: ['french tip'],
-    'deep u': ['deep_u', 'french tip'],
+    'deep u': ['deep u', 'deep_u', 'french tip'],
     deep_u: ['deep u', 'french tip'],
     v_cut: ['v cut', 'chevron', 'french tip'],
     'v cut': ['v_cut', 'chevron', 'french tip'],
 
     zebra: ['zebra'],
-    cheetah: ['animal print', 'leopard', 'print'],
-    leopard: ['animal print', 'cheetah', 'print'],
-    cow: ['animal print', 'cow print', 'print'],
-    snake: ['animal print', 'snakeskin', 'print'],
+    cheetah: ['cheetah', 'leopard', 'animal print'],
+    leopard: ['leopard', 'cheetah', 'animal print'],
+    cow: ['cow', 'cow print', 'animal print'],
+    snake: ['snake', 'snakeskin', 'animal print'],
   };
 
   for (const x of groups[k] || []) out.add(normToken(x));
-
   return Array.from(out);
 }
 
@@ -149,7 +138,15 @@ function weightedIntentGroups(intent = {}) {
   };
 }
 
-function scoreTermsAgainstTemplate({ terms, name, tagSet, tags, category, weight, missingPenalty = 0 }) {
+function scoreTermsAgainstTemplate({
+  terms,
+  name,
+  tagSet,
+  tags,
+  category,
+  weight,
+  missingPenalty = 0,
+}) {
   let score = 0;
   const matched = [];
   const missing = [];
@@ -184,16 +181,6 @@ function scoreTermsAgainstTemplate({ terms, name, tagSet, tags, category, weight
   return { score, matched, missing };
 }
 
-function weightedIntentGroups(intent = {}) {
-  return {
-    required: arr(intent.required).map(normToken).filter(Boolean),
-    highPriority: arr(intent.highPriority).map(normToken).filter(Boolean),
-    preferred: arr(intent.preferred).map(normToken).filter(Boolean),
-    optional: arr(intent.optional).map(normToken).filter(Boolean),
-    synonyms: arr(intent.synonyms).map(normToken).filter(Boolean),
-  };
-}
-
 function scoreTemplate({
   template,
   prompt = '',
@@ -207,7 +194,6 @@ function scoreTemplate({
 
   const id = templateId(template);
   if (!id) return null;
-
   if (norm(template.status || 'active') !== 'active') return null;
 
   const wantedShape = norm(shape || intent.shape);
@@ -222,9 +208,8 @@ function scoreTemplate({
   let lengthAdapted = false;
 
   if (wantedLength && tLength) {
-    if (wantedLength === tLength) {
-      shapeLengthScore += 45;
-    } else {
+    if (wantedLength === tLength) shapeLengthScore += 45;
+    else {
       shapeLengthScore -= 18;
       adaptationCost += 18;
       lengthAdapted = true;
@@ -232,25 +217,23 @@ function scoreTemplate({
   }
 
   if (wantedShape && tShape) {
-    if (wantedShape === tShape) {
-      shapeLengthScore += 35;
-    } else {
+    if (wantedShape === tShape) shapeLengthScore += 35;
+    else {
       shapeLengthScore -= 8;
       adaptationCost += 8;
       shapeAdapted = true;
     }
   }
 
-  // Important: same length/different shape is still usable.
   if (wantedLength && tLength && wantedLength === tLength && wantedShape && tShape && wantedShape !== tShape) {
     shapeLengthScore += 20;
   }
 
-  // Wrong length + wrong shape should need very strong keyword matches.
   if (lengthAdapted && shapeAdapted) {
     adaptationCost += 12;
     shapeLengthScore -= 12;
   }
+
   const wantedComplexity = normalizeComplexity(complexity || intent.complexity);
   const templateComplexity = normalizeComplexity(template.complexity);
 
@@ -259,6 +242,7 @@ function scoreTemplate({
   const tagSet = new Set(tags);
   const category = normToken(template.category);
 
+  const terms = buildSearchTerms({ prompt, intent });
   const groups = weightedIntentGroups(intent);
 
   const requiredScore = scoreTermsAgainstTemplate({
@@ -328,69 +312,6 @@ function scoreTemplate({
     ...highPriorityScore.missing,
   ]));
 
-  const requiredScore = scoreTermsAgainstTemplate({
-    terms: groups.required,
-    name,
-    tagSet,
-    tags,
-    category,
-    weight: 35,
-    missingPenalty: 45,
-  });
-
-  const highPriorityScore = scoreTermsAgainstTemplate({
-    terms: groups.highPriority,
-    name,
-    tagSet,
-    tags,
-    category,
-    weight: 22,
-    missingPenalty: 12,
-  });
-
-  const preferredScore = scoreTermsAgainstTemplate({
-    terms: groups.preferred,
-    name,
-    tagSet,
-    tags,
-    category,
-    weight: 10,
-    missingPenalty: 0,
-  });
-
-  const optionalScore = scoreTermsAgainstTemplate({
-    terms: groups.optional,
-    name,
-    tagSet,
-    tags,
-    category,
-    weight: 3,
-    missingPenalty: 0,
-  });
-
-  const synonymScore = scoreTermsAgainstTemplate({
-    terms: groups.synonyms,
-    name,
-    tagSet,
-    tags,
-    category,
-    weight: 5,
-    missingPenalty: 0,
-  });
-
-  matched = [
-    ...requiredScore.matched,
-    ...highPriorityScore.matched,
-    ...preferredScore.matched,
-    ...optionalScore.matched,
-    ...synonymScore.matched,
-  ];
-
-  missing = [
-    ...requiredScore.missing,
-    ...highPriorityScore.missing,
-  ];
-
   let titleScore = 0;
   let tagScore = 0;
   let categoryScore = 0;
@@ -399,29 +320,14 @@ function scoreTemplate({
   for (const term of terms) {
     if (!term) continue;
 
-    // Strongest: exact phrase in title
-    if (name.includes(term)) {
-      titleScore += term.includes(' ') ? 18 : 10;
-    }
-
-    // Second: exact tag
-    if (tagSet.has(term)) {
-      tagScore += term.includes(' ') ? 9 : 6;
-    }
-
-    // Third: partial tag match
-    if (tags.some((t) => t.includes(term) || term.includes(t))) {
-      tagScore += 2;
-    }
-
-    if (category && category.includes(term)) {
-      categoryScore += 3;
-    }
+    if (name.includes(term)) titleScore += term.includes(' ') ? 18 : 10;
+    if (tagSet.has(term)) tagScore += term.includes(' ') ? 9 : 6;
+    else if (tags.some((t) => t.includes(term) || term.includes(t))) tagScore += 2;
+    if (category && category.includes(term)) categoryScore += 3;
   }
 
   const promptLower = normToken(prompt);
 
-  // Extra phrase boosts
   if (promptLower.includes('animal print') && (name.includes('zebra') || name.includes('cheetah') || name.includes('leopard'))) {
     exactPhraseScore += 8;
   }
@@ -446,15 +352,7 @@ function scoreTemplate({
   const useCount = Number(template.useCount);
   const useScore = Number.isFinite(useCount) ? Math.min(1.5, useCount / 100) : 0;
 
-  // Tiny deterministic variety bonus
   const randomScore = seededTinyScore(`${seed}_${id}`);
-
-  const weightedIntentScore =
-    requiredScore.score +
-    highPriorityScore.score +
-    preferredScore.score +
-    optionalScore.score +
-    synonymScore.score;
 
   const finalScore =
     shapeLengthScore +
@@ -467,7 +365,7 @@ function scoreTemplate({
     trendScore +
     useScore +
     randomScore -
-      adaptationCost;
+    adaptationCost;
 
   return {
     template,
@@ -476,7 +374,7 @@ function scoreTemplate({
     score: finalScore,
     confidence: Math.max(0, Math.min(100, Math.round(finalScore))),
     matched,
-    missing,    
+    missing,
     adaptation: {
       shapeAdapted,
       lengthAdapted,
@@ -488,7 +386,6 @@ function scoreTemplate({
     },
     breakdown: {
       shapeLengthScore,
-      titleScore,
       weightedIntentScore,
       requiredScore: requiredScore.score,
       highPriorityScore: highPriorityScore.score,
@@ -496,6 +393,7 @@ function scoreTemplate({
       optionalScore: optionalScore.score,
       synonymScore: synonymScore.score,
       adaptationPenalty: -adaptationCost,
+      titleScore,
       tagScore,
       categoryScore,
       exactPhraseScore,
@@ -516,7 +414,7 @@ function seededTinyScore(input) {
     h = Math.imul(h, 16777619);
   }
 
-  return ((h >>> 0) % 1000) / 1000; // 0 to 0.999
+  return ((h >>> 0) % 1000) / 1000;
 }
 
 function rankFingerTemplates({
@@ -555,7 +453,6 @@ function rankFingerTemplates({
 function pickFromRanked(ranked, seed = 0, variantIndex = 0) {
   if (!ranked.length) return null;
 
-  // Use top-scoring pool instead of always #1.
   const best = ranked[0].score;
   const threshold = Math.max(1, best * 0.65);
 
@@ -568,9 +465,6 @@ function pickFromRanked(ranked, seed = 0, variantIndex = 0) {
   return pool[index]?.template || ranked[0]?.template || null;
 }
 
-/**
- * Backward-compatible function used by older service code.
- */
 function pickFingerTemplate({
   prompt,
   shape,
@@ -616,18 +510,15 @@ function pickFingerTemplate({
       name: x.name,
       score: Number(x.score.toFixed(2)),
       confidence: x.confidence,
-      adaptation: x.adaptation,
-      breakdown: x.breakdown,
-      confidence: x.confidence,
       matched: x.matched,
       missing: x.missing,
       adaptation: x.adaptation,
+      breakdown: x.breakdown,
     })));
 
     return pickFromRanked(ranked, seed, variantIndex);
   }
 
-  // Shape/length fallback only if scoring found nothing.
   const s = norm(shape || intent.shape);
   const l = norm(length || intent.length);
 
