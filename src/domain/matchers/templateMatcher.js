@@ -371,8 +371,6 @@ function scoreTemplate({
     ...highPriorityScore.missing,
   ]));
 
-  const groups = weightedIntentGroups(intent);
-
   let matched = [];
   let missing = [];
 
