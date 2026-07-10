@@ -1468,6 +1468,34 @@ async function generateOneDesign({
 
   const accentSet = new Set(finalAccentIndexes);
 
+  const fingerKeyToIndex = {
+    left_thumb: 0,
+    left_index: 1,
+    left_middle: 2,
+    left_ring: 3,
+    left_pinky: 4,
+    right_thumb: 5,
+    right_index: 6,
+    right_middle: 7,
+    right_ring: 8,
+    right_pinky: 9,
+  };
+
+  function mergeFingerIntent(globalIntent, directive) {
+    return {
+      ...(globalIntent || {}),
+      required: [...(globalIntent?.required || []), ...(directive?.required || [])],
+      highPriority: [...(globalIntent?.highPriority || []), ...(directive?.highPriority || [])],
+      preferred: [...(globalIntent?.preferred || []), ...(directive?.preferred || [])],
+      optional: [...(globalIntent?.optional || []), ...(directive?.optional || [])],
+      colorFamilies: directive?.colorFamilies?.length ? directive.colorFamilies : globalIntent?.colorFamilies,
+      finish: directive?.finish || globalIntent?.finish,
+      charmKeywords: [...(globalIntent?.charmKeywords || []), ...(directive?.charmKeywords || [])],
+      patternKeywords: [...(globalIntent?.patternKeywords || []), ...(directive?.patternKeywords || [])],
+      frenchTipStyle: directive?.frenchTipStyle || globalIntent?.frenchTipStyle,
+    };
+  }
+
   // ----------------------------
   // 6) Build fingers (10)
   // - start all as base template
@@ -1487,6 +1515,44 @@ async function generateOneDesign({
     const tpl = accentAt(accentCounter);
     fingers[idx] = buildFingerFromTemplateDoc(tpl, base);
     accentCounter++;
+  }
+
+  const fingerDirectiveReports = [];
+
+  for (const directive of intent.fingerDirectives || []) {
+    const directiveIntent = mergeFingerIntent(intent, directive);
+
+    const rankedForFinger = rankFingerTemplates({
+      prompt: safePrompt,
+      intent: directiveIntent,
+      shape,
+      length,
+      complexity: chosenComplexity,
+      templates: normalizedTemplates,
+      seed: Number(seed || 0) + fingerDirectiveReports.length + 77,
+      limit: 10,
+    });
+
+    if (!rankedForFinger.length) continue;
+
+    const chosenForFinger = rankedForFinger[0].template;
+
+    for (const fingerKey of directive.fingers || []) {
+      const idx = fingerKeyToIndex[fingerKey];
+      if (idx === undefined) continue;
+
+      fingers[idx] = buildFingerFromTemplateDoc(chosenForFinger, base);
+
+      fingerDirectiveReports.push({
+        fingerKey,
+        templateId: getDocId(chosenForFinger),
+        templateName: chosenForFinger?.name || chosenForFinger?.label || null,
+        confidence: rankedForFinger[0].confidence,
+        matched: rankedForFinger[0].matched || [],
+        missing: rankedForFinger[0].missing || [],
+        adaptation: rankedForFinger[0].adaptation,
+      });
+    }
   }
 
   // ----------------------------
@@ -1512,6 +1578,21 @@ async function generateOneDesign({
   // ✅ if mirrorHands true: swap only left then mirror
   // ----------------------------
   let swapsApplied = false;
+
+  const adaptationReport = {
+    shapeAdapted: false,
+    lengthAdapted: false,
+    colorChanged: false,
+    frenchChanged: false,
+    patternChanged: false,
+    charmChanged: false,
+    cleanupRan: false,
+    cleanupRemoved: {
+      charms: 0,
+      gelArt: 0,
+      gelArt3D: 0,
+    },
+  };
 
   try {
     if (typeof applySwaps === 'function' && nailDesign && Array.isArray(nailDesign.fingers)) {
@@ -1581,22 +1662,38 @@ async function generateOneDesign({
   nailDesign = normalizeNailDesign(nailDesign);
 
   try {
+    const designBeforeOverrides = JSON.stringify(nailDesign);
+
     nailDesign = applyPromptOverridesToDesign({
-    design: nailDesign,
-    prompt: safePrompt,
-    complexity: chosenComplexity,
-    colorLibrary,
-    intent,
-    charms,
-    frenchTips,
-    patterns,
-    stamps,
-    gelArt3D,
-    stickers,
-    variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
-  });
+      design: nailDesign,
+      prompt: safePrompt,
+      intent,
+      complexity: chosenComplexity,
+      colorLibrary,
+      charms,
+      frenchTips,
+      patterns,
+      stamps,
+      gelArt3D,
+      stickers,
+      variantIndex: Number.isFinite(Number(seed)) ? Number(seed) % 10 : 0,
+    });
+
+    const designAfterOverrides = JSON.stringify(nailDesign);
+
+    if (designBeforeOverrides !== designAfterOverrides) {
+      adaptationReport.colorChanged = true;
+    }
+
+  const beforeCleanup = JSON.stringify(nailDesign);
 
   nailDesign = await removeOutOfBoundsElementsBackend(nailDesign, nails);
+
+  const afterCleanup = JSON.stringify(nailDesign);
+
+  if (beforeCleanup !== afterCleanup) {
+    adaptationReport.cleanupRan = true;
+  }
 
     console.log('🧪 AFTER OVERRIDES SAMPLE', {
       shape: nailDesign?.shape,
@@ -1672,12 +1769,16 @@ async function generateOneDesign({
             breakdown: rankedTemplates[0].breakdown,
           }
         : null,
+      fingerDirectiveReports,
+      fingerDirectives: intent.fingerDirectives || [],
       accentIndexes: Array.from(accentSet),
       accentCount: Array.from(accentSet).length,
       explicitFingerOverrides: overrideIndexes.length > 0,
       overrideIndexes,
 
       swapsApplied,
+
+      adaptationReport,
 
       catalogs: {
         frenchTips: Array.isArray(frenchTips) ? frenchTips.length : 0,
@@ -3228,6 +3329,68 @@ function pickBestRanked(docs, promptTokens, { excludeId = null } = {}) {
   return null;
 }
 
+function logAiDesignReport({
+  prompt,
+  intent,
+  rankedTemplates = [],
+  selectedTemplateReport = null,
+  adaptationReport = {},
+}) {
+  console.log('\n==============================');
+  console.log('💅 AI DESIGN REPORT');
+  console.log('==============================');
+
+  console.log('Prompt:', prompt);
+
+  console.log('Intent:', {
+    shape: intent?.shape || null,
+    length: intent?.length || null,
+    complexity: intent?.complexity || null,
+    required: intent?.required || [],
+    highPriority: intent?.highPriority || [],
+    preferred: intent?.preferred || [],
+    optional: intent?.optional || [],
+    colorFamilies: intent?.colorFamilies || [],
+    finish: intent?.finish || null,
+    charmKeywords: intent?.charmKeywords || [],
+    patternKeywords: intent?.patternKeywords || [],
+    frenchTipStyle: intent?.frenchTipStyle || null,
+    fingerDirectives: intent?.fingerDirectives || [],
+  });
+
+  console.log('Selected Template:', selectedTemplateReport);
+
+  console.log(
+    'Top Templates:',
+    rankedTemplates.slice(0, 5).map((x) => ({
+      id: x.id,
+      name: x.name,
+      score: Number(x.score.toFixed(2)),
+      confidence: x.confidence,
+      matched: x.matched || [],
+      missing: x.missing || [],
+      adaptation: x.adaptation,
+    }))
+  );
+
+  console.log('Adaptation Report:', adaptationReport);
+  console.log('==============================\n');
+}
+
+function calculateAdaptationBudget(report = {}) {
+  let cost = 0;
+
+  if (report.shapeAdapted === true) cost += 10;
+  if (report.lengthAdapted === true) cost += 20;
+  if (report.colorChanged === true) cost += 2;
+  if (report.frenchChanged === true) cost += 5;
+  if (report.patternChanged === true) cost += 8;
+  if (report.charmChanged === true) cost += 4;
+  if (report.cleanupRan === true) cost += 3;
+
+  return cost;
+}
+
 // ---------------------------
 // Public export: single + variants + combined
 // ---------------------------
@@ -3290,6 +3453,31 @@ exports.generateDesign = async ({
       });
       designs.push(one.nailDesign);
     }
+
+    const selectedTemplateReportForLog = rankedTemplates.length
+      ? {
+          id: rankedTemplates[0].id,
+          name: rankedTemplates[0].name,
+          score: Number(rankedTemplates[0].score.toFixed(2)),
+          confidence: rankedTemplates[0].confidence,
+          matched: rankedTemplates[0].matched || [],
+          missing: rankedTemplates[0].missing || [],
+          adaptation: rankedTemplates[0].adaptation,
+          breakdown: rankedTemplates[0].breakdown,
+        }
+      : null;
+
+    adaptationReport.shapeAdapted = rankedTemplates?.[0]?.adaptation?.shapeAdapted === true;
+    adaptationReport.lengthAdapted = rankedTemplates?.[0]?.adaptation?.lengthAdapted === true;
+    adaptationReport.adaptationBudget = calculateAdaptationBudget(adaptationReport);
+
+    logAiDesignReport({
+      prompt: safePrompt,
+      intent,
+      rankedTemplates,
+      selectedTemplateReport: selectedTemplateReportForLog,
+      adaptationReport,
+    });
 
     return {
       prompt: safePrompt,

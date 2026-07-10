@@ -450,19 +450,13 @@ function rankFingerTemplates({
   return scored.slice(0, limit);
 }
 
-function pickFromRanked(ranked, seed = 0, variantIndex = 0) {
-  if (!ranked.length) return null;
+function pickFromRanked(ranked) {
+  if (!ranked.length) {
+    return null;
+  }
 
-  const best = ranked[0].score;
-  const threshold = Math.max(1, best * 0.65);
-
-  const pool = ranked
-    .filter((x) => x.score >= threshold)
-    .slice(0, 12);
-
-  const index = Math.abs(Number(seed || 0) + Number(variantIndex || 0)) % pool.length;
-
-  return pool[index]?.template || ranked[0]?.template || null;
+  // During testing always use the highest scoring template.
+  return ranked[0].template;
 }
 
 function pickFingerTemplate({

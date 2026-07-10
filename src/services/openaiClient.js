@@ -317,6 +317,7 @@ function fallbackIntentFromPrompt(prompt) {
     styleTags,
     charmKeywords,
     patternKeywords,
+    fingerDirectives: [],
     frenchTipStyle: p.includes('deep u') ? 'deep_u' : p.includes('v cut') || p.includes('v-cut') ? 'v_cut' : p.includes('french') ? 'classic_u' : null,
     hydrationTargets: [],
     themeKeywords: allKeywords,
@@ -407,6 +408,21 @@ function normalizeIntent(json, prompt) {
     charmKeywords,
     patternKeywords,
 
+    fingerDirectives: Array.isArray(json.fingerDirectives)
+      ? json.fingerDirectives.map((d) => ({
+          fingers: safeArray(d.fingers),
+          required: safeArray(d.required),
+          highPriority: safeArray(d.highPriority),
+          preferred: safeArray(d.preferred),
+          optional: safeArray(d.optional),
+          colorFamilies: normalizeColorFamilies(d.colorFamilies || []),
+          finish: normalizeFinish(d.finish),
+          charmKeywords: safeArray(d.charmKeywords),
+          patternKeywords: safeArray(d.patternKeywords),
+          frenchTipStyle: d.frenchTipStyle || null,
+        }))
+      : [],
+
     frenchTipStyle:
       String(json.frenchTipStyle || fallback.frenchTipStyle || '').trim().toLowerCase() || null,
 
@@ -468,6 +484,21 @@ Use this exact schema:
   "hydrationTargets": string[],
 
   "vibe": string,
+
+  "fingerDirectives": [
+    {
+      "fingers": string[],
+      "required": string[],
+      "highPriority": string[],
+      "preferred": string[],
+      "optional": string[],
+      "colorFamilies": string[],
+      "finish": string|null,
+      "charmKeywords": string[],
+      "patternKeywords": string[],
+      "frenchTipStyle": string|null
+    }
+  ]
 }
 
 Allowed shape values:
@@ -510,6 +541,13 @@ Rules:
 - If user asks for "zebra", required should include "zebra"; optional may include "animal print".
 - If user asks for, for example, "red glitter", required should include "red glitter"; colorFamilies should include "reds"; finish should be "glitter".
 - If user asks for "gold cherry charms", for example, required should include "cherry charm" and "gold"; charmKeywords should include "cherry" and "gold".
+
+Finger directive rules:
+- If user says "thumbs", use ["left_thumb", "right_thumb"].
+- If user says "index fingers", use ["left_index", "right_index"].
+- If user says "ring fingers", use ["left_ring", "right_ring"].
+- If user says "right thumb", use ["right_thumb"] only.
+- Only create fingerDirectives when the user requests specific details for specific fingers.
 `.trim();
 
   try {
