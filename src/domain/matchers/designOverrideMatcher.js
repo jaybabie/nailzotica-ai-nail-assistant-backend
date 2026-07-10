@@ -118,7 +118,7 @@ function applyMatchedColorToFingerArt(finger, matchedColor, { wantsFrench = fals
   };
 }
 
-function applyPatternToBestPlacement({
+function applyPatternToExistingTemplatePattern({
   finger,
   prompt,
   intent = {},
@@ -126,6 +126,8 @@ function applyPatternToBestPlacement({
   variantIndex,
 }) {
   if (!finger) return finger;
+
+  const layers = Array.isArray(finger.layers) ? [...finger.layers] : [];
 
   const matchedPattern = pickMatchingPattern({
     prompt,
@@ -136,18 +138,64 @@ function applyPatternToBestPlacement({
 
   if (!matchedPattern) return finger;
 
-  const patternLayer = buildPatternLayerFromDoc({
-    pattern: matchedPattern,
-    variantIndex,
+  let changed = false;
+
+  const nextLayers = layers.map((layer) => {
+    if (!layer) return layer;
+
+    // Case 1: existing flat pattern layer
+    if (layer.type === 'pattern') {
+      changed = true;
+      return buildPatternLayerFromDoc({
+        pattern: matchedPattern,
+        existingLayer: layer,
+        variantIndex,
+        index: layer.index ?? 0,
+      });
+    }
+
+    // Case 2: pattern inside french tip
+    if (layer.type === 'french_tip' && layer.pattern) {
+      changed = true;
+      return {
+        ...layer,
+        pattern: buildPatternLayerFromDoc({
+          pattern: matchedPattern,
+          existingLayer: layer.pattern,
+          variantIndex,
+          index: layer.index ?? 0,
+        }),
+      };
+    }
+
+    // Case 3: patternFill inside paint layer
+    if (layer.patternFill) {
+      changed = true;
+      return {
+        ...layer,
+        patternFill: {
+          ...(layer.patternFill || {}),
+          patternId: matchedPattern.patternId || matchedPattern.id || matchedPattern.docId,
+          patternRef: matchedPattern.patternId || matchedPattern.id || matchedPattern.docId,
+          name: matchedPattern.name || layer.patternFill?.name || '',
+          tags: Array.isArray(matchedPattern.tags) ? matchedPattern.tags : [],
+          thumbnailUi: matchedPattern.uiThumbnailUrl || matchedPattern.canvasUiUrl || '',
+          canvasUiUrl: matchedPattern.canvasUiUrl || matchedPattern.uiThumbnailUrl || '',
+          uiImageUrl: matchedPattern.canvasUiUrl || matchedPattern.uiThumbnailUrl || '',
+        },
+      };
+    }
+
+    return layer;
   });
 
-  const placement = decidePatternPlacement(prompt);
+  // Important: if template had no pattern slot, do NOT add one.
+  if (!changed) return finger;
 
-  return applyPatternPlacement({
-    finger,
-    patternLayer,
-    placement,
-  });
+  return {
+    ...finger,
+    layers: nextLayers,
+  };
 }
 
 function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantIndex = 0 }) {
@@ -310,7 +358,7 @@ function applyPromptOverridesToDesign({
 
     // 4. Pattern placement: inside french tip, inside stamp, or flat layer
     if (shouldApplyToFinger(fingerKey, accentKeys)) {
-      finger = applyPatternToBestPlacement({
+      finger = applyPatternToExistingTemplatePattern({
         finger,
         prompt: promptLower,
         intent,

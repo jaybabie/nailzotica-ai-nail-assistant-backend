@@ -216,14 +216,35 @@ function scoreColorDoc(colorDoc, intent) {
     else if (haystack.includes(s)) score += 12;
   }
 
+  let familyMatched = false;
+  let finishMatched = false;
+
   for (const wantedFamily of intent.colorFamilies) {
-    if (family.includes(wantedFamily)) score += 18;
+    if (family.includes(wantedFamily)) {
+      score += 30;
+      familyMatched = true;
+    }
   }
 
   for (const wantedFinish of intent.finishes) {
-    if (finish === wantedFinish) score += 15;
-    else if (finish.includes(wantedFinish)) score += 8;
-    else if (polishCode.includes(wantedFinish)) score += 4;
+    if (finish === wantedFinish) {
+      score += 35;
+      finishMatched = true;
+    } else if (finish.includes(wantedFinish)) {
+      score += 18;
+      finishMatched = true;
+    } else if (polishCode.includes(wantedFinish)) {
+      score += 12;
+      finishMatched = true;
+    }
+  }
+
+  // If user asked for both a color family and finish,
+  // strongly punish colors that only match one side.
+  if (intent.colorFamilies.length && intent.finishes.length) {
+    if (familyMatched && finishMatched) score += 40;
+    if (familyMatched && !finishMatched) score -= 35;
+    if (!familyMatched && finishMatched) score -= 25;
   }
 
   // Strong special-case behavior
@@ -235,6 +256,17 @@ function scoreColorDoc(colorDoc, intent) {
   if (intent.specificColorNames.includes('black')) {
     if (name.includes('black')) score += 35;
     if (name.includes('white')) score -= 20;
+  }
+
+  if (intent.specificColorNames.includes('black')) {
+    if (name.includes('black')) score += 35;
+    if (name.includes('white')) score -= 20;
+  }
+
+  // Red glitter should beat pink glossy every time.
+  if (intent.colorFamilies.includes('reds') && intent.finishes.includes('glitter')) {
+    if (family.includes('reds') && finish === 'glitter') score += 60;
+    if (family.includes('pinks') && finish !== 'glitter') score -= 50;
   }
 
   // Avoid transparent unless user asks for sheer/clear/jelly.

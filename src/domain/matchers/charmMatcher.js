@@ -349,47 +349,53 @@ function applyPromptCharmToFinger({
 
   const existingCharms = Array.isArray(finger.charms) ? finger.charms : [];
 
-  // If the template has no charm and user did not ask for charm-like things,
-  // don't force charms onto every design.
+  // Template is source of truth:
+  // if template has no charm slot, do not add charms.
+  if (!existingCharms.length) return finger;
+
   const charmIntent = buildCharmIntent(intent || prompt);
-  if (!existingCharms.length && !charmIntent.keywords.length && !charmIntent.specificCharmNames.length) {
+
+  // If user did not ask for charm/style/color changes, keep template charms.
+  if (!charmIntent.keywords.length && !charmIntent.specificCharmNames.length) {
     return finger;
   }
 
-  const usedIds = existingCharms
-    .map((c) => c?.id || c?.charmId || c?.assetId)
-    .filter(Boolean);
+  const allCharms = Array.isArray(charms) ? charms : [];
 
-  const matchedCharm = pickMatchingCharm({
-    prompt,
-    intent,
-    charms,
-    variantIndex,
-    excludeIds: variantIndex > 0 ? usedIds : [],
-  });
+  const nextCharms = existingCharms.map((existing, i) => {
+    const existingVariantGroupId = String(existing?.variantGroupId || '').trim();
 
-  if (!matchedCharm) return finger;
+    // Safest path: only swap inside the same variantGroupId.
+    const variantPool = existingVariantGroupId
+      ? allCharms.filter((c) => String(c?.variantGroupId || '').trim() === existingVariantGroupId)
+      : [];
 
-  const existing = existingCharms[0] || {
-    x: 0.5,
-    y: 0.45,
-    offsetX: 0.5,
-    offsetY: 0.45,
-    rotation: 0,
-    scale: 1,
-    fingerKey,
-  };
+    const poolToUse = variantPool.length ? variantPool : [];
 
-  const newCharm = buildCharmInstanceFromDoc({
-    charm: matchedCharm,
-    existingCharm: existing,
-    fingerKey,
-    variantIndex,
+    // If no safe variant pool exists, keep original charm.
+    if (!poolToUse.length) return existing;
+
+    const matchedCharm = pickMatchingCharm({
+      prompt,
+      intent,
+      charms: poolToUse,
+      variantIndex: variantIndex + i,
+      excludeIds: [],
+    });
+
+    if (!matchedCharm) return existing;
+
+    return buildCharmInstanceFromDoc({
+      charm: matchedCharm,
+      existingCharm: existing,
+      fingerKey,
+      variantIndex: variantIndex + i,
+    });
   });
 
   return {
     ...finger,
-    charms: [newCharm],
+    charms: nextCharms,
   };
 }
 

@@ -198,11 +198,15 @@ function fallbackIntentFromPrompt(prompt) {
   const p = String(prompt || '').toLowerCase();
 
   let shape = null;
-  if (p.includes('coffin') || p.includes('ballerina')) shape = 'coffin';
+  if (p.includes('coffin') || p.includes('ballerina')) shape = 'ballerina';
   else if (p.includes('stiletto')) shape = 'stiletto';
   else if (p.includes('almond')) shape = 'almond';
   else if (p.includes('oval')) shape = 'oval';
-  else if (p.includes('round')) shape = 'round';
+  else if (p.includes('square_mooncut')) shape = 'square_mooncut';
+  else if (p.includes('ballerina_mooncut')) shape = 'ballerina_mooncut';
+  else if (p.includes('duck_mooncut')) shape = 'duck_mooncut';
+  else if (p.includes('lipstick_right')) shape = 'lipstick_right';
+  else if (p.includes('lipstick_left')) shape = 'lipstick_left';
   else if (p.includes('duck')) shape = 'duck';
   else if (p.includes('square')) shape = 'square';
 
@@ -211,6 +215,7 @@ function fallbackIntentFromPrompt(prompt) {
   else if (p.includes('long')) length = 'long';
   else if (p.includes('short')) length = 'short';
   else if (p.includes('medium')) length = 'medium';
+  else if (p.includes('extra_short')) length = 'extra_short';
 
   let complexity = null;
   if (p.includes('basic') || p.includes('simple') || p.includes('minimal')) complexity = 'low';
@@ -256,6 +261,7 @@ function fallbackIntentFromPrompt(prompt) {
   addIf(p.includes('white'), colorFamilies, 'whites');
   addIf(p.includes('nude'), colorFamilies, 'neutrals');
   addIf(p.includes('gold') || p.includes('silver') || p.includes('chrome'), colorFamilies, 'metallics');
+  
 
   let finish = null;
   if (p.includes('matte')) finish = 'matte';
@@ -271,6 +277,23 @@ function fallbackIntentFromPrompt(prompt) {
     ...styleTags,
   ]));
 
+  if (p.includes('red') && p.includes('glitter')) {
+    required.push('red glitter');
+    colorFamilies.push('reds');
+    finish = 'glitter';
+  }
+
+  if (p.includes('zebra')) {
+    required.push('zebra');
+    patternKeywords.push('zebra');
+    secondaryKeywords.push('animal print');
+  } 
+
+  if (p.includes('cherry')) {
+    required.push('cherry charm');
+    charmKeywords.push('cherry');
+  }
+
   return {
     shape,
     length,
@@ -280,6 +303,15 @@ function fallbackIntentFromPrompt(prompt) {
     primaryKeywords,
     secondaryKeywords,
     allKeywords,
+    required,
+    highPriority,
+    preferred,
+    optional,
+    specificColorNames: [],
+    specificCharmNames: [],
+    specificPatternNames: [],
+    specificStampNames: [],
+    specificFrenchTipStyle: null,
     colorFamilies,
     finish,
     styleTags,
@@ -297,6 +329,11 @@ function fallbackIntentFromPrompt(prompt) {
 
 function normalizeIntent(json, prompt) {
   const fallback = fallbackIntentFromPrompt(prompt);
+
+  const required = safeArray(json.required);
+  const highPriority = safeArray(json.highPriority);
+  const preferred = safeArray(json.preferred);
+  const optional = safeArray(json.optional);
 
   const complexity = normalizeComplexity(json.complexity) || fallback.complexity;
   const finish = normalizeFinish(json.finish) || fallback.finish;
@@ -322,6 +359,10 @@ function normalizeIntent(json, prompt) {
     : fallback.patternKeywords;
 
   const allKeywords = Array.from(new Set([
+    ...required,
+    ...highPriority,
+    ...preferred,
+    ...optional,
     ...primaryKeywords,
     ...secondaryKeywords,
     ...styleTags,
@@ -353,6 +394,11 @@ function normalizeIntent(json, prompt) {
     secondaryKeywords,
     synonyms: safeArray(json.synonyms),
     allKeywords,
+
+    required,
+    highPriority,
+    preferred,
+    optional,
 
     colorFamilies,
     finish,
@@ -398,28 +444,37 @@ Use this exact schema:
   "complexity": string|null,
   "mirrorHands": boolean|null,
 
+  "required": string[],
+  "highPriority": string[],
+  "preferred": string[],
+  "optional": string[],
+
   "primaryKeywords": string[],
   "secondaryKeywords": string[],
   "synonyms": string[],
 
   "colorFamilies": string[],
+  "specificColorNames": string[],
   "finish": string|null,
 
   "styleTags": string[],
   "charmKeywords": string[],
+  "specificCharmNames": string[],
   "patternKeywords": string[],
+  "specificPatternNames": string[],
 
   "frenchTipStyle": string|null,
+  "specificFrenchTipStyle": string|null,
   "hydrationTargets": string[],
 
-  "vibe": string
+  "vibe": string,
 }
 
 Allowed shape values:
-square, coffin, almond, stiletto, oval, round, duck
+square, ballerina, lipstick_left, lipstick_right, almond, stiletto, oval, duck, square_mooncut_ ballerina_mooncut, duck_mooncut
 
 Allowed length values:
-short, medium, long, extra_long
+extra_short, short, medium, long, extra_long
 
 Allowed complexity values:
 basic, glam, extra
@@ -447,6 +502,14 @@ Rules:
 - Put the most important visual concepts in primaryKeywords.
 - Put related/supporting concepts in secondaryKeywords.
 - hydrationTargets should include any of: base, french_tip, paint_layers, patterns, stamps, charms.
+- required = things the user clearly requested and the design should not compromise on, especially shape, length, specific print, specific charm type, or specific color/finish combo.
+- highPriority = very important visual ideas, but slightly less strict than required.
+- preferred = nice-to-have details.
+- optional = weak related ideas that can help scoring but should not overpower exact matches.
+- Do not put broad related terms like "animal print" in required if the user specifically asked for "zebra".
+- If user asks for "zebra", required should include "zebra"; optional may include "animal print".
+- If user asks for, for example, "red glitter", required should include "red glitter"; colorFamilies should include "reds"; finish should be "glitter".
+- If user asks for "gold cherry charms", for example, required should include "cherry charm" and "gold"; charmKeywords should include "cherry" and "gold".
 `.trim();
 
   try {
