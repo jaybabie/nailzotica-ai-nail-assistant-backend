@@ -1186,9 +1186,21 @@ async function generateOneDesign({
   // ----------------------------
   const safeGet = async (name) => {
     try {
-      const v = await getCollection(name);
-      return Array.isArray(v) ? v : [];
-    } catch (e) {
+      const value = await getCollection(name);
+      const documents =
+        Array.isArray(value) ? value : [];
+
+      console.log(
+        `Loaded ${name}: ${documents.length}`
+      );
+
+      return documents;
+    } catch (error) {
+      console.error(
+        `Failed loading ${name}:`,
+        error
+      );
+
       return [];
     }
   };
@@ -1227,6 +1239,18 @@ async function generateOneDesign({
   }
 
   let nails = await safeGet('nails');
+
+  const findNailAsset = (wantedShape, wantedLength) => {
+    const normalizedShape = norm(wantedShape);
+    const normalizedLength = norm(wantedLength);
+
+    return (nails || []).find((nail) => {
+      return (
+        norm(nail?.shape) === normalizedShape &&
+        norm(nail?.length) === normalizedLength
+      );
+    }) || null;
+  };
 
   let stamps = await safeGet('stamp_library');
   if (!stamps.length) {
@@ -1434,28 +1458,96 @@ async function generateOneDesign({
       ? buildFingerFromFingerDesign(fd, base)
       : buildBaseOnlyFinger(base);
 
+    const fingerShape =
+      norm(tplDoc?.shape || tplDoc?.nailShape || shape) ||
+      shape;
+
+    const fingerLength =
+      norm(tplDoc?.length || tplDoc?.nailLength || length) ||
+      length;
+
+    const nailAsset = findNailAsset(
+      fingerShape,
+      fingerLength
+    );
+
+    const previewImageUrl = String(
+      nailAsset?.previewImageUrl ||
+      nailAsset?.previewUrl ||
+      nailAsset?.uiPreviewImage ||
+      nailAsset?.uiImageUrl ||
+      ''
+    ).trim();
+
+    const canvasImageUrl = String(
+      nailAsset?.canvasImageUrl ||
+      nailAsset?.canvasUrl ||
+      nailAsset?.uiCanvasImage ||
+      nailAsset?.uiImageUrl ||
+      previewImageUrl ||
+      ''
+    ).trim();
+
+    const clippingMaskUrl = String(
+      nailAsset?.clippingMaskUrl ||
+      nailAsset?.uiClippingMask ||
+      nailAsset?.uiMaskUrl ||
+      ''
+    ).trim();
+
     return {
-      // ✅ per-finger template identity
+      ...core,
+
       templateId: getDocId(tplDoc) || null,
-      templateName: tplDoc?.name ?? tplDoc?.label ?? null,
+      templateName:
+        tplDoc?.name ??
+        tplDoc?.label ??
+        null,
+
       adaptedFromShape: tplDoc?.shape ?? null,
       adaptedFromLength: tplDoc?.length ?? null,
 
-      shape,
-      length,
+      shape: fingerShape,
+      length: fingerLength,
 
-      shapeAdapted: tplDoc?.shape && String(tplDoc.shape).toLowerCase() !== String(shape).toLowerCase(),
-      lengthAdapted: tplDoc?.length && String(tplDoc.length).toLowerCase() !== String(length).toLowerCase(),
-      uiImageUrl: tplDoc?.uiImageUrl ?? tplDoc?.thumbnailUi ?? tplDoc?.imageUrl ?? '',
-      modelUrl: tplDoc?.modelUrl ?? '',
+      shapeAdapted:
+        tplDoc?.shape &&
+        norm(tplDoc.shape) !== norm(shape),
 
-      templateRef: fd?.templateRef ?? (
-        fd?.templateId || fd?.templateName
-          ? { id: fd?.templateId ?? null, name: fd?.templateName ?? null }
-          : null
-      ),
+      lengthAdapted:
+        tplDoc?.length &&
+        norm(tplDoc.length) !== norm(length),
 
-      ...core,
+      previewImageUrl,
+      canvasImageUrl,
+      clippingMaskUrl,
+
+      uiImageUrl:
+        canvasImageUrl ||
+        previewImageUrl,
+
+      imageUrl:
+        canvasImageUrl ||
+        previewImageUrl,
+
+      uiClippingMask:
+        clippingMaskUrl,
+
+      modelUrl:
+        tplDoc?.modelUrl ??
+        nailAsset?.modelUrl ??
+        '',
+
+      templateRef:
+        fd?.templateRef ??
+        (
+          fd?.templateId || fd?.templateName
+            ? {
+                id: fd?.templateId ?? null,
+                name: fd?.templateName ?? null,
+              }
+            : null
+        ),
     };
   }
 
