@@ -7,6 +7,23 @@ const sharp = require('sharp');
 
 const { normalizeNailDesign } = require('../domain/validators/normalizeNailDesign');
 const { getCollection } = require('../config/firestore');
+const {
+  colorLibrary: LOCAL_COLOR_LIBRARY,
+  frenchTips: LOCAL_FRENCH_TIPS,
+  frenchTipLookup: LOCAL_FRENCH_TIP_LOOKUP,
+  frenchTipsByShapeLength: LOCAL_FRENCH_TIPS_BY_SHAPE_LENGTH,
+  nails: LOCAL_NAILS,
+  getNailAsset: getLocalNailAsset,
+} = require('../catalogs/localNailCatalog');
+
+const LOCAL_CATALOGS_BY_NAME = Object.freeze({
+  color_library: LOCAL_COLOR_LIBRARY,
+  colorLibrary: LOCAL_COLOR_LIBRARY,
+  french_tip: LOCAL_FRENCH_TIPS,
+  french_tips: LOCAL_FRENCH_TIPS,
+  frenchTips: LOCAL_FRENCH_TIPS,
+  nails: LOCAL_NAILS,
+});
 const { applyPromptOverridesToDesign } = require('../domain/matchers/designOverrideMatcher');
 
 const {
@@ -1205,7 +1222,15 @@ async function generateOneDesign({
     }
   };
 
-  const colorLibrary = await safeGet('color_library');
+  // Static catalogs are loaded once from assets/data by localNailCatalog.js.
+  // Do not replace these with safeGet(): these collections must not hit Firestore.
+  const colorLibrary = LOCAL_COLOR_LIBRARY;
+  const frenchTips = LOCAL_FRENCH_TIPS;
+  const frenchTipCatalog = {
+    lookup: LOCAL_FRENCH_TIP_LOOKUP,
+    byShapeLength: LOCAL_FRENCH_TIPS_BY_SHAPE_LENGTH,
+  };
+  const nails = LOCAL_NAILS;
 
   let templates = await safeGet('finger_templates');
   if (!templates.length) {
@@ -1223,11 +1248,6 @@ async function generateOneDesign({
       : [];
   } catch (_) {}
 
-  let frenchTips = await safeGet('french_tips');
-  if (!frenchTips.length) {
-    frenchTips = await safeGet('french_tip');
-  }
-
   let patterns = await safeGet('pattern_library');
   if (!patterns.length) {
     patterns = await safeGet('patterns');
@@ -1238,19 +1258,8 @@ async function generateOneDesign({
     charms = await safeGet('charms');
   }
 
-  let nails = await safeGet('nails');
-
-  const findNailAsset = (wantedShape, wantedLength) => {
-    const normalizedShape = norm(wantedShape);
-    const normalizedLength = norm(wantedLength);
-
-    return (nails || []).find((nail) => {
-      return (
-        norm(nail?.shape) === normalizedShape &&
-        norm(nail?.length) === normalizedLength
-      );
-    }) || null;
-  };
+  const findNailAsset = (wantedShape, wantedLength) =>
+    getLocalNailAsset(wantedShape, wantedLength);
 
   let stamps = await safeGet('stamp_library');
   if (!stamps.length) {
@@ -1780,6 +1789,7 @@ async function generateOneDesign({
       colorLibrary,
       charms,
       frenchTips,
+      frenchTipCatalog,
       patterns,
       stamps,
       gelArt3D,
@@ -2480,6 +2490,11 @@ function __scoreAsset(asset, promptTags) {
 
 async function __getPool(collectionName) {
   if (!collectionName) return [];
+
+  // Static local catalogs must never fall through to Firestore.
+  if (Object.prototype.hasOwnProperty.call(LOCAL_CATALOGS_BY_NAME, collectionName)) {
+    return LOCAL_CATALOGS_BY_NAME[collectionName];
+  }
 
   // simple caching to avoid reloading for each finger
   if (__SWAP_CACHE.poolsByCollection.has(collectionName)) {

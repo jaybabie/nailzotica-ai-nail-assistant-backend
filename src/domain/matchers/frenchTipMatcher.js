@@ -4,8 +4,33 @@ function norm(v) {
   return String(v ?? '').trim().toLowerCase();
 }
 
+function normalizeKeyPart(v) {
+  return String(v ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/_+/g, '_');
+}
+
 function frenchId(doc) {
-  return String(doc?.id || doc?.frenchTipId || doc?.docId || '').trim();
+  const explicit = String(doc?.id || doc?.frenchTipId || doc?.docId || '').trim();
+  if (explicit) return explicit;
+
+  // Exported french_tip.json records have blank Firestore IDs.
+  // Use the unique catalog dimensions as a stable identity instead.
+  return [doc?.style, doc?.variation, doc?.shape, doc?.length]
+    .map(normalizeKeyPart)
+    .join('|');
+}
+
+function frenchTipKey(style, variation, shape, length) {
+  return [style, variation, shape, length]
+    .map(normalizeKeyPart)
+    .join('|');
+}
+
+function shapeLengthKey(shape, length) {
+  return [shape, length].map(normalizeKeyPart).join('|');
 }
 
 function promptFrenchStyle(prompt, intent = {}) {
@@ -103,6 +128,7 @@ function pickMatchingFrenchTip({
   prompt,
   intent = {},
   frenchTips,
+  frenchTipCatalog = null,
   shape,
   length,
   variantIndex = 0,
@@ -110,7 +136,26 @@ function pickMatchingFrenchTip({
   const list = Array.isArray(frenchTips) ? frenchTips : [];
   if (!list.length) return null;
 
-  const scored = list
+  const wantedStyle = promptFrenchStyle(prompt, intent);
+  const wantedVariation = promptFrenchVariation(prompt);
+  const normalizedShape = normalizeKeyPart(shape);
+  const normalizedLength = normalizeKeyPart(length);
+
+  // Fast exact lookup when all four dimensions are known.
+  if (wantedStyle && wantedVariation && frenchTipCatalog?.lookup instanceof Map) {
+    const exact = frenchTipCatalog.lookup.get(
+      frenchTipKey(wantedStyle, wantedVariation, normalizedShape, normalizedLength)
+    );
+    if (exact) return exact;
+  }
+
+  // Otherwise score only tips for the requested shape/length when indexed.
+  const indexedPool = frenchTipCatalog?.byShapeLength instanceof Map
+    ? frenchTipCatalog.byShapeLength.get(shapeLengthKey(normalizedShape, normalizedLength))
+    : null;
+  const pool = Array.isArray(indexedPool) && indexedPool.length ? indexedPool : list;
+
+  const scored = pool
     .map((doc) => ({
       doc,
       id: frenchId(doc),
@@ -167,6 +212,7 @@ function applyPromptFrenchTipToFinger({
   prompt,
   intent = {},
   frenchTips,
+  frenchTipCatalog = null,
   shape,
   length,
   variantIndex = 0,
@@ -190,6 +236,7 @@ function applyPromptFrenchTipToFinger({
     prompt,
     intent,
     frenchTips,
+    frenchTipCatalog,
     shape: finger.shape || shape,
     length: finger.length || length,
     variantIndex,

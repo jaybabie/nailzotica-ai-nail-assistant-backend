@@ -224,7 +224,7 @@ function ensureFrenchTipLayer({ finger, shape, length, matchedColor, variantInde
   ).trim();
 
   // This only rebuilds the mask URL using the same style/variant.
-  // Later, the Firestore french_tip matcher should be the source of truth.
+  // The local french_tip catalog matcher is the source of truth.
   layers[existingFrenchIndex] = {
     ...oldFrenchTip,
     style: selectedStyle,
@@ -259,6 +259,7 @@ function applyPromptOverridesToDesign({
   colorLibrary = [],
   charms = [],
   frenchTips = [],
+  frenchTipCatalog = null,
   patterns = [],
   stamps = [],
   gelArt3D = [],
@@ -322,6 +323,7 @@ function applyPromptOverridesToDesign({
       prompt: promptLower,
       intent,
       frenchTips,
+      frenchTipCatalog,
       shape: finger.shape || design.shape,
       length: finger.length || design.length,
       variantIndex,
