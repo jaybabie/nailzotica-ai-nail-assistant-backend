@@ -12,18 +12,60 @@ function safeArray(v) {
   return v.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean);
 }
 
+const ALLOWED_SHAPES = new Set([
+  'square',
+  'ballerina',
+  'stiletto',
+  'duck',
+  'duck_mooncut',
+  'almond',
+  'oval',
+  'square_mooncut',
+  'ballerina_mooncut',
+  'lipstick_left',
+  'lipstick_right',
+]);
+
+const ALLOWED_LENGTHS = new Set([
+  'extra_short',
+  'short',
+  'medium',
+  'long',
+  'extra_long',
+]);
+
 function normalizeShape(v) {
-  const s = String(v || '').trim().toLowerCase();
-  if (['square', 'coffin', 'almond', 'stiletto', 'oval', 'round', 'duck'].includes(s)) return s;
-  if (s === 'ballerina') return 'coffin';
-  return null;
+  let s = String(v || '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_')
+    .replace(/\s+/g, '_');
+
+  if (!s) return null;
+
+  // Common synonym. Production Nailzotica value is "ballerina".
+  if (s === 'coffin') s = 'ballerina';
+  if (s === 'coffin_mooncut') s = 'ballerina_mooncut';
+
+  // The production customizer does not expose a separate round shape.
+  if (s === 'round') s = 'oval';
+
+  return ALLOWED_SHAPES.has(s) ? s : null;
 }
 
 function normalizeLength(v) {
-  const s = String(v || '').trim().toLowerCase().replace(/-/g, '_');
-  if (['short', 'medium', 'long', 'extra_long'].includes(s)) return s;
-  if (['xl', 'x_long', 'extra long', 'extra-long'].includes(s)) return 'extra_long';
-  return null;
+  let s = String(v || '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_')
+    .replace(/\s+/g, '_');
+
+  if (!s) return null;
+
+  if (['xl', 'x_long', 'xlong'].includes(s)) s = 'extra_long';
+  if (['xs', 'x_short', 'xshort'].includes(s)) s = 'extra_short';
+
+  return ALLOWED_LENGTHS.has(s) ? s : null;
 }
 
 function normalizeComplexity(v) {
@@ -198,24 +240,42 @@ function fallbackIntentFromPrompt(prompt) {
   const p = String(prompt || '').toLowerCase();
 
   let shape = null;
-  if (p.includes('coffin') || p.includes('ballerina')) shape = 'ballerina';
+  if (
+    p.includes('ballerina_mooncut') ||
+    p.includes('ballerina mooncut') ||
+    p.includes('coffin_mooncut') ||
+    p.includes('coffin mooncut')
+  ) shape = 'ballerina_mooncut';
+  else if (p.includes('square_mooncut') || p.includes('square mooncut')) shape = 'square_mooncut';
+  else if (p.includes('duck_mooncut') || p.includes('duck mooncut')) shape = 'duck_mooncut';
+  else if (p.includes('lipstick_right') || p.includes('lipstick right') || p.includes('right lipstick')) shape = 'lipstick_right';
+  else if (p.includes('lipstick_left') || p.includes('lipstick left') || p.includes('left lipstick')) shape = 'lipstick_left';
+  else if (p.includes('coffin') || p.includes('ballerina')) shape = 'ballerina';
   else if (p.includes('stiletto')) shape = 'stiletto';
   else if (p.includes('almond')) shape = 'almond';
-  else if (p.includes('oval')) shape = 'oval';
-  else if (p.includes('square_mooncut')) shape = 'square_mooncut';
-  else if (p.includes('ballerina_mooncut')) shape = 'ballerina_mooncut';
-  else if (p.includes('duck_mooncut')) shape = 'duck_mooncut';
-  else if (p.includes('lipstick_right')) shape = 'lipstick_right';
-  else if (p.includes('lipstick_left')) shape = 'lipstick_left';
+  else if (p.includes('oval') || p.includes('round')) shape = 'oval';
   else if (p.includes('duck')) shape = 'duck';
   else if (p.includes('square')) shape = 'square';
 
   let length = null;
-  if (p.includes('extra long') || p.includes('extra-long') || p.includes('xl')) length = 'extra_long';
-  else if (p.includes('long')) length = 'long';
-  else if (p.includes('short')) length = 'short';
+  if (
+    p.includes('extra short') ||
+    p.includes('extra-short') ||
+    p.includes('extra_short') ||
+    p.includes('xshort') ||
+    p.includes('x-short')
+  ) length = 'extra_short';
+  else if (
+    p.includes('extra long') ||
+    p.includes('extra-long') ||
+    p.includes('extra_long') ||
+    p.includes('xlong') ||
+    p.includes('x-long') ||
+    p.includes('xl')
+  ) length = 'extra_long';
   else if (p.includes('medium')) length = 'medium';
-  else if (p.includes('extra_short')) length = 'extra_short';
+  else if (p.includes('short')) length = 'short';
+  else if (p.includes('long')) length = 'long';
 
   let complexity = null;
   if (p.includes('basic') || p.includes('simple') || p.includes('minimal')) complexity = 'low';
@@ -507,7 +567,7 @@ Use this exact schema:
 }
 
 Allowed shape values:
-square, ballerina, lipstick_left, lipstick_right, almond, stiletto, oval, duck, square_mooncut_ ballerina_mooncut, duck_mooncut
+square, ballerina, lipstick_left, lipstick_right, almond, stiletto, oval, duck, square_mooncut, ballerina_mooncut, duck_mooncut
 
 Allowed length values:
 extra_short, short, medium, long, extra_long
@@ -534,6 +594,8 @@ Rules:
 - If user says "animal print", include zebra, cheetah, leopard only if appropriate.
 - If user says "coquette", include bow, pearl, heart, ribbon if appropriate.
 - If user says gold or silver, include metallics in colorFamilies and include gold/silver in charmKeywords.
+- Treat "coffin" as the synonym "ballerina" and return "ballerina".
+- Treat "round" as the closest supported production shape "oval".
 - Do not invent a shape or length if user did not mention one. Defaults happen in code later.
 - Put the most important visual concepts in primaryKeywords.
 - Put related/supporting concepts in secondaryKeywords.
